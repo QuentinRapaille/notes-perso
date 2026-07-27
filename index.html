@@ -82,9 +82,6 @@ body::before{
 .btn-sm{padding:6px 12px;font-size:11px}
 .btn-danger{border-color:var(--red);color:var(--red)}
 .btn-danger:hover{background:rgba(224,85,85,0.1)}
-.btn-session{border-color:var(--session);color:var(--session)}
-.btn-session:hover{background:rgba(155,114,207,0.1)}
-.btn-session-on{background:rgba(155,114,207,0.2);border-color:var(--session);color:var(--session)}
 
 .nav{display:flex;align-items:center;gap:12px;margin-bottom:24px}
 .nav-back{cursor:pointer;background:none;border:none;color:var(--accent);font-family:inherit;font-size:13px;padding:0}
@@ -427,7 +424,6 @@ select option{background:var(--bg3)}
       <div class="logo-sub">SIEGE STATS</div>
     </div>
     <div class="topbar-actions">
-      <button class="btn btn-sm btn-session" id="btn-sess" onclick="toggleSession()">Demarrer session</button>
       <button class="btn btn-primary btn-sm" onclick="goNewGame()">+ Partie</button>
     </div>
   </div>
@@ -756,11 +752,10 @@ function renderHome() {
   document.getElementById('home-metrics').innerHTML =
     mk('Parties', games.length) + mk('Win rate', wr+'%') + mk('Moy. kills', avgK);
 
+  maybeCloseStaleSession();
   var as = DB.activeSess;
-  var btn = document.getElementById('btn-sess');
   var banner = document.getElementById('home-sess-banner');
   if (as) {
-    btn.className='btn btn-sm btn-session-on'; btn.textContent='Terminer session';
     var sg = games.filter(function(g){ return as.gameIds.indexOf(g.id)!==-1; });
     var sw = sg.filter(function(g){ return g.result==='win'; }).length;
     var sk = [].concat.apply([],sg.map(function(g){ return g.rounds; })).reduce(function(s,r){ return s+r.kills; },0);
@@ -768,7 +763,6 @@ function renderHome() {
       '<div class="sess-banner-info">Debut : '+as.startLabel+'</div></div>'+
       '<div class="sess-banner-info">'+sg.length+' partie(s) &mdash; '+sw+' victoire(s) &mdash; '+sk+' kills</div></div>';
   } else {
-    btn.className='btn btn-sm btn-session'; btn.textContent='Demarrer session';
     banner.innerHTML='';
   }
   renderHist();
@@ -809,19 +803,30 @@ function renderHist() {
   el.innerHTML=html;
 }
 
-// ===================== SESSION TOGGLE =====================
-function toggleSession() {
+// ===================== SESSION AUTO-MANAGEMENT =====================
+// No more manual start/stop: a session opens automatically on the first game
+// launched, and auto-closes once more than SESSION_TIMEOUT_MS has passed since
+// the last game was started (checked whenever the app is opened or a new game
+// is launched - there is no background timer while the app isn't running).
+var SESSION_TIMEOUT_MS = 90 * 60 * 1000; // 1h30
+function closeSession(as, atTime) {
+  as.end = new Date(atTime).toISOString(); as.endLabel = fmtDT(new Date(atTime));
+  var sess = DB.sessions; sess.push(as); DB.sessions = sess;
+  DB.activeSess = null;
+  document.body.classList.remove('session-active');
+}
+function maybeCloseStaleSession() {
   var as = DB.activeSess;
-  if (as) {
-    as.end=new Date().toISOString(); as.endLabel=fmtDT(new Date());
-    var sess=DB.sessions; sess.push(as); DB.sessions=sess;
-    DB.activeSess=null;
-    document.body.classList.remove('session-active');
-  } else {
-    DB.activeSess={id:Date.now(),start:new Date().toISOString(),startLabel:fmtDT(new Date()),end:null,endLabel:null,label:null,note:null,gameIds:[]};
+  if (!as) return;
+  var lastActivity = as.gameIds.length ? Math.max.apply(null, as.gameIds) : as.id;
+  if (Date.now() - lastActivity > SESSION_TIMEOUT_MS) closeSession(as, lastActivity);
+}
+function ensureActiveSession() {
+  maybeCloseStaleSession();
+  if (!DB.activeSess) {
+    DB.activeSess = {id:Date.now(),start:new Date().toISOString(),startLabel:fmtDT(new Date()),end:null,endLabel:null,label:null,note:null,gameIds:[]};
     document.body.classList.add('session-active');
   }
-  renderHome();
 }
 
 // ===================== NEW GAME =====================
@@ -835,6 +840,7 @@ function startGame() {
   var fmtVal = document.getElementById('ng-fmt').value;
   var roleVal = S.firstRole;
   function begin() {
+    ensureActiveSession();
     S.curGame={id:Date.now(),map:mapVal,format:fmtVal,firstRole:roleVal,rounds:[],result:null,date:new Date().toLocaleDateString('fr-FR')};
     S.curRound=0; S.kills=0; S.result='win';
     renderRound(); goScreen('s-round');
