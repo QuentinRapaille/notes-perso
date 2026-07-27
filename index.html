@@ -438,7 +438,7 @@ select option{background:var(--bg3)}
     <div id="home-hist"></div>
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
-    <button class="btn btn-accent" style="flex:1" onclick="goScreen('s-stats');renderStats()">Statistiques</button>
+    <button class="btn btn-accent" style="flex:1" onclick="openStats()">Statistiques</button>
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
     <button class="btn" style="flex:1" onclick="goScreen('s-calendar');renderCalendarScreen()">Calendrier</button>
@@ -1641,6 +1641,10 @@ function saveEditGame() {
 }
 
 // ===================== STATS =====================
+function openStats() {
+  S.statsTab = 'global'; S.opDetail = null; S.mapDetail = null;
+  goScreen('s-stats'); renderStats();
+}
 function setStatsTabByName(tab) {
   var btns = document.querySelectorAll('#stats-tabs .tab');
   var target = null;
