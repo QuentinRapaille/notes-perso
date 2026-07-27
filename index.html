@@ -1504,7 +1504,9 @@ function openEditGame(idx) {
   var g = DB.games[idx];
   // Deep copy rounds
   S.editRounds = g.rounds.map(function(r) {
-    return { role: r.role, operator: r.operator, kills: r.kills, result: r.result };
+    var copy = { role: r.role, operator: r.operator, kills: r.kills, result: r.result };
+    if (r.site) copy.site = r.site;
+    return copy;
   });
   document.getElementById('gedit-back').onclick = function() { showGameDetail(idx); };
   renderEditGame();
@@ -2889,6 +2891,7 @@ function setRank(idx) {
   var r = getRankFromIndex(idx);
   if (r.tier === 'Master') r.medals = loadPlayerRank() && loadPlayerRank().tier === 'Master' ? (loadPlayerRank().medals || 0) : 0;
   savePlayerRank(r);
+  autoPushToGist();
   updateAccentColors();
   renderHome();
   if (document.getElementById('s-stats') && document.getElementById('s-stats').classList.contains('active')) renderStats();
@@ -2900,6 +2903,7 @@ function adjustMedals(delta) {
   if (!r || r.tier !== 'Master') return;
   r.medals = Math.max(0, (r.medals || 0) + delta);
   savePlayerRank(r);
+  autoPushToGist();
   renderHome();
   if (document.getElementById('s-stats') && document.getElementById('s-stats').classList.contains('active')) renderStats();
   var goPrompt = document.getElementById('go-rank-prompt');
