@@ -477,7 +477,7 @@ select option{background:var(--bg3)}
         <button class="rc-btn def" id="rc-def" onclick="setFirstRole('Defenseur')">Defenseur</button>
       </div>
     </div>
-    <button class="btn btn-primary btn-full" style="margin-top:6px" onclick="startGame()">Commencer</button>
+    <button class="btn btn-primary btn-full" id="ng-start-btn" style="margin-top:6px" onclick="startGame()">Commencer</button>
   </div>
 </div>
 
@@ -831,9 +831,22 @@ function setFirstRole(role) {
   document.getElementById('rc-def').classList.toggle('sel', role==='Defenseur');
 }
 function startGame() {
-  S.curGame={id:Date.now(),map:document.getElementById('ng-map').value,format:document.getElementById('ng-fmt').value,firstRole:S.firstRole,rounds:[],result:null,date:new Date().toLocaleDateString('fr-FR')};
-  S.curRound=0; S.kills=0; S.result='win';
-  renderRound(); goScreen('s-round');
+  var mapVal = document.getElementById('ng-map').value;
+  var fmtVal = document.getElementById('ng-fmt').value;
+  var roleVal = S.firstRole;
+  function begin() {
+    S.curGame={id:Date.now(),map:mapVal,format:fmtVal,firstRole:roleVal,rounds:[],result:null,date:new Date().toLocaleDateString('fr-FR')};
+    S.curRound=0; S.kills=0; S.result='win';
+    renderRound(); goScreen('s-round');
+  }
+  var c = getSyncCreds();
+  if (!c.token || !c.gistId) { begin(); return; }
+  var btn = document.getElementById('ng-start-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Recuperation depuis le cloud...'; }
+  autoPullFromGist().then(function() {
+    if (btn) { btn.disabled = false; btn.textContent = 'Commencer'; }
+    begin();
+  });
 }
 function getRoleAt(i) { return (i%2===0)?S.curGame.firstRole:(S.curGame.firstRole==='Attaquant'?'Defenseur':'Attaquant'); }
 
@@ -1210,6 +1223,7 @@ function submitRound() {
     var games=DB.games; games.unshift(g); DB.games=games;
     var as=DB.activeSess;
     if(as){ as.gameIds.push(g.id); DB.activeSess=as; }
+    autoPushToGist();
     renderGameOver(preSnap); goScreen('s-gameover');
   } else {
     S.curRound++; renderRound();
@@ -3114,14 +3128,12 @@ function createSyncGist() {
     setSyncStatus('Erreur : ' + err.message);
   });
 }
-function pushToGist() {
-  var token = document.getElementById('sync-token').value.trim();
-  var gistId = document.getElementById('sync-gistid').value.trim();
-  if (!token || !gistId) { alert('Renseigne le token et l\'identifiant du Gist.'); return; }
-  if (!confirm('Envoyer tes donnees actuelles vers le cloud ? Cela remplacera la version en ligne.')) return;
-  saveSyncCreds(token, gistId);
-  setSyncStatus('Envoi en cours...');
-  fetch('https://api.github.com/gists/' + gistId, {
+function getSyncCreds() {
+  return { token: lsGet('r6_gist_token',''), gistId: lsGet('r6_gist_id','') };
+}
+// Core push/pull, reusable both from the sync screen (manual) and automatically
+function doPushToGist(token, gistId) {
+  return fetch('https://api.github.com/gists/' + gistId, {
     method: 'PATCH',
     headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
     body: JSON.stringify({ files: { 'r6tracker.json': { content: JSON.stringify(buildSyncPayload(), null, 2) } } })
@@ -3130,19 +3142,11 @@ function pushToGist() {
     return r.json();
   }).then(function(){
     lsSet('r6_gist_lastsync', fmtDT(new Date()));
-    renderSyncScreen();
-  }).catch(function(err){
-    setSyncStatus('Erreur : ' + err.message);
+    if (document.getElementById('sync-content')) renderSyncScreen();
   });
 }
-function pullFromGist() {
-  var token = document.getElementById('sync-token').value.trim();
-  var gistId = document.getElementById('sync-gistid').value.trim();
-  if (!token || !gistId) { alert('Renseigne le token et l\'identifiant du Gist.'); return; }
-  if (!confirm('Recuperer les donnees du cloud ? Cela remplacera tes donnees locales sur cet appareil.')) return;
-  saveSyncCreds(token, gistId);
-  setSyncStatus('Recuperation en cours...');
-  fetch('https://api.github.com/gists/' + gistId, {
+function doPullFromGist(token, gistId) {
+  return fetch('https://api.github.com/gists/' + gistId, {
     headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' }
   }).then(function(r){
     if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -3162,10 +3166,57 @@ function pullFromGist() {
     if (d.playerrank) savePlayerRank(d.playerrank);
     lsSet('r6_gist_lastsync', fmtDT(new Date()));
     updateAccentColors();
-    renderSyncScreen();
+    if (document.getElementById('sync-content')) renderSyncScreen();
+    return d;
+  });
+}
+function pushToGist() {
+  var token = document.getElementById('sync-token').value.trim();
+  var gistId = document.getElementById('sync-gistid').value.trim();
+  if (!token || !gistId) { alert('Renseigne le token et l\'identifiant du Gist.'); return; }
+  if (!confirm('Envoyer tes donnees actuelles vers le cloud ? Cela remplacera la version en ligne.')) return;
+  saveSyncCreds(token, gistId);
+  setSyncStatus('Envoi en cours...');
+  doPushToGist(token, gistId).catch(function(err){
+    setSyncStatus('Erreur : ' + err.message);
+  });
+}
+function pullFromGist() {
+  var token = document.getElementById('sync-token').value.trim();
+  var gistId = document.getElementById('sync-gistid').value.trim();
+  if (!token || !gistId) { alert('Renseigne le token et l\'identifiant du Gist.'); return; }
+  if (!confirm('Recuperer les donnees du cloud ? Cela remplacera tes donnees locales sur cet appareil.')) return;
+  saveSyncCreds(token, gistId);
+  setSyncStatus('Recuperation en cours...');
+  doPullFromGist(token, gistId).then(function(){
     alert(DB.games.length + ' parties recuperees avec succes.');
   }).catch(function(err){
     setSyncStatus('Erreur : ' + err.message);
+  });
+}
+// Automatic, silent versions: used after finishing a game and before starting a new one.
+// No confirm()/alert() popups - they must not interrupt the flow. Failures (offline, bad
+// token...) are logged and reflected in the sync screen status if it happens to be open,
+// but never block gameplay.
+function autoPushToGist() {
+  var c = getSyncCreds();
+  if (!c.token || !c.gistId) return;
+  doPushToGist(c.token, c.gistId).then(function(){
+    setSyncStatus('Sauvegarde automatique envoyee.');
+  }).catch(function(err){
+    console.warn('Auto-push cloud echoue :', err.message);
+    setSyncStatus('Erreur de sauvegarde automatique : ' + err.message);
+  });
+}
+function autoPullFromGist() {
+  var c = getSyncCreds();
+  if (!c.token || !c.gistId) return Promise.resolve();
+  setSyncStatus('Recuperation automatique en cours...');
+  return doPullFromGist(c.token, c.gistId).then(function(){
+    setSyncStatus('Recuperation automatique effectuee.');
+  }).catch(function(err){
+    console.warn('Auto-pull cloud echoue :', err.message);
+    setSyncStatus('Erreur de recuperation automatique : ' + err.message);
   });
 }
 
