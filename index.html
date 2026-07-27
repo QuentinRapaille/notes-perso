@@ -1240,7 +1240,16 @@ function undoRound() {
   S.curGame.rounds.pop(); S.curRound--; renderRound();
 }
 function abandonGame() {
-  if(confirm('Abandonner la partie en cours ?')){ S.curGame=null; goHome(); }
+  if(!confirm('Abandonner la partie en cours ?')) return;
+  S.curGame=null;
+  // If the active session has no completed game yet, this abandoned game was
+  // going to be its first: cancel the session too instead of leaving an empty one.
+  var as = DB.activeSess;
+  if (as && !as.gameIds.length) {
+    DB.activeSess = null;
+    document.body.classList.remove('session-active');
+  }
+  goHome();
 }
 
 // ===================== GAME OVER =====================
