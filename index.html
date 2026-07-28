@@ -204,6 +204,20 @@ select option{background:var(--bg3)}
 .add-row{display:flex;gap:8px;margin-top:12px}
 .add-row input{flex:1}
 
+.go-splash{position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;background:rgba(6,6,10,0.72);pointer-events:none;animation:splash-bg 2.3s ease forwards}
+@keyframes splash-bg{0%{opacity:0}10%{opacity:1}75%{opacity:1}100%{opacity:0}}
+.go-splash-ring{position:absolute;border-radius:50%;border:2px solid currentColor;opacity:0;animation:splash-ring 1.7s ease-out forwards}
+.go-splash-ring.r2{animation-delay:.18s}
+@keyframes splash-ring{0%{width:24px;height:24px;opacity:.8}100%{width:320px;height:320px;opacity:0}}
+.go-splash-text{position:relative;font-size:clamp(38px,13vw,84px);font-weight:800;letter-spacing:.1em;text-transform:uppercase;text-align:center;transform:scale(.4);opacity:0;animation:splash-pop 2.3s cubic-bezier(.22,1,.36,1) forwards}
+@keyframes splash-pop{0%{transform:scale(.4);opacity:0}14%{transform:scale(1.15);opacity:1}24%{transform:scale(1);opacity:1}78%{transform:scale(1);opacity:1}100%{transform:scale(1.05);opacity:0}}
+.go-splash-text.win{color:var(--win);text-shadow:0 0 26px rgba(76,175,112,.85),0 0 60px rgba(76,175,112,.4)}
+.go-splash-text.loss{color:var(--loss);text-shadow:0 0 26px rgba(224,85,85,.85),0 0 60px rgba(224,85,85,.4)}
+.go-splash-text.draw{color:var(--text);text-shadow:0 0 26px rgba(255,255,255,.35)}
+.go-splash-ring.win{color:var(--win)}
+.go-splash-ring.loss{color:var(--loss)}
+.go-splash-ring.draw{color:var(--text3)}
+
 .go-result{text-align:center;padding:28px 20px;border-radius:var(--r2);margin-bottom:16px}
 .go-result.win{background:rgba(76,175,112,0.08);border:1px solid rgba(76,175,112,0.25)}
 .go-result.loss{background:rgba(224,85,85,0.08);border:1px solid rgba(224,85,85,0.2)}
@@ -1231,6 +1245,7 @@ function submitRound() {
     if(as){ as.gameIds.push(g.id); DB.activeSess=as; }
     autoPushToGist();
     renderGameOver(preSnap); goScreen('s-gameover');
+    showGameOverSplash(g.result);
   } else {
     S.curRound++; renderRound();
   }
@@ -1238,6 +1253,18 @@ function submitRound() {
 function undoRound() {
   if(!S.curGame||!S.curGame.rounds.length) return;
   S.curGame.rounds.pop(); S.curRound--; renderRound();
+}
+function showGameOverSplash(result) {
+  var cls = result === 'win' ? 'win' : result === 'loss' ? 'loss' : 'draw';
+  var label = result === 'win' ? 'Victoire' : result === 'loss' ? 'Defaite' : 'Egalite';
+  var el = document.createElement('div');
+  el.className = 'go-splash';
+  el.innerHTML =
+    '<div class="go-splash-ring '+cls+'"></div>'+
+    '<div class="go-splash-ring r2 '+cls+'"></div>'+
+    '<div class="go-splash-text '+cls+'">'+label+'</div>';
+  document.body.appendChild(el);
+  setTimeout(function(){ el.remove(); }, 2300);
 }
 function abandonGame() {
   if(!confirm('Abandonner la partie en cours ?')) return;
