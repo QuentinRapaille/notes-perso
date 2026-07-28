@@ -1659,8 +1659,8 @@ function saveEditGame() {
 
 // ===================== STATS =====================
 function openStats() {
-  S.statsTab = 'global'; S.opDetail = null; S.mapDetail = null;
-  goScreen('s-stats'); renderStats();
+  goScreen('s-stats');
+  setStatsTabByName('global');
 }
 function setStatsTabByName(tab) {
   var btns = document.querySelectorAll('#stats-tabs .tab');
