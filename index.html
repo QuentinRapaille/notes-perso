@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>R6 Tracker</title>
+<title>R6M</title>
 <style>
 :root {
   --bg:#0a0a0f; --bg2:#111118; --bg3:#1a1a24;
@@ -418,16 +418,16 @@ select option{background:var(--bg3)}
   <div class="topbar">
     <div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <div class="logo">R6 Tracker</div>
-        <div id="home-rank-chip"></div>
+        <div class="logo">R6M</div>
       </div>
       <div class="logo-sub">SIEGE STATS</div>
     </div>
     <div class="topbar-actions">
-      <button class="btn btn-primary btn-sm" onclick="goNewGame()">+ Partie</button>
+      <button class="btn btn-primary" onclick="goNewGame()">Nouvelle partie</button>
     </div>
   </div>
   <div id="home-sess-banner"></div>
+  <div id="home-rank-banner"></div>
   <div class="metrics" id="home-metrics"></div>
   <div class="card">
     <div class="card-title">Historique</div>
@@ -747,8 +747,8 @@ function renderHome() {
   var wr = games.length ? Math.round(wins/games.length*100) : 0;
   var avgK = rounds.length ? (kills/rounds.length).toFixed(1) : 0;
 
-  var chipEl = document.getElementById('home-rank-chip');
-  if (chipEl) chipEl.innerHTML = rankBannerHTML(false);
+  var bannerEl = document.getElementById('home-rank-banner');
+  if (bannerEl) bannerEl.innerHTML = rankBannerHTML(true);
   document.getElementById('home-metrics').innerHTML =
     mk('Parties', games.length) + mk('Win rate', wr+'%') + mk('Moy. kills', avgK);
 
@@ -1750,13 +1750,13 @@ function renderStats() {
       srow('Meilleure partie (kills/manche)',bestGameVal)+
       srow('Meilleure serie de victoires',streak(games,'win'))+
       srow('Pire serie defaites',streak(games,'loss'))+
-      srow('Map preferee',bestMapVal)+
+      srow('Map preferee (WR)',bestMapVal)+
       '</div>'+
       '<div class="card" style="margin-top:12px"><div class="card-title" style="color:var(--atk)">Operateurs &mdash; Attaque</div>'+
-      (atkOp ? srow('Le plus utilise',atkOp.mostUsed)+srow('Le plus efficace',atkOp.mostEff)+srow('Le plus meurtrier',atkOp.mostKill) : '<div class="empty" style="padding:1rem">Pas de donnees</div>')+
+      (atkOp ? srow('Le plus utilise',atkOp.mostUsed)+srow('Le plus efficace (WR)',atkOp.mostEff)+srow('Le plus meurtrier (kills/manche)',atkOp.mostKill) : '<div class="empty" style="padding:1rem">Pas de donnees</div>')+
       '</div>'+
       '<div class="card" style="margin-top:12px"><div class="card-title" style="color:var(--def)">Operateurs &mdash; Defense</div>'+
-      (defOp ? srow('Le plus utilise',defOp.mostUsed)+srow('Le plus efficace',defOp.mostEff)+srow('Le plus meurtrier',defOp.mostKill) : '<div class="empty" style="padding:1rem">Pas de donnees</div>')+
+      (defOp ? srow('Le plus utilise',defOp.mostUsed)+srow('Le plus efficace (WR)',defOp.mostEff)+srow('Le plus meurtrier (kills/manche)',defOp.mostKill) : '<div class="empty" style="padding:1rem">Pas de donnees</div>')+
       '</div>';
     return;
   }
@@ -1865,8 +1865,8 @@ function renderStats() {
 
     var html = '<div class="card"><div class="card-title">Records de session</div>'+
       srow('Plus de parties', sessLink(mostGames.idx, mostGames.count+' parties ('+mostGames.label+')'))+
-      srow('Meilleur win rate', sessLink(bestWR.idx, bestWR.wr+'% ('+bestWR.label+')'))+
-      srow('Meilleurs kills/manche', sessLink(bestKR.idx, bestKR.avgK.toFixed(1)+' ('+bestKR.label+')'))+
+      srow('Meilleur win rate', sessLink(bestWR.idx, bestWR.wr+'% sur '+bestWR.count+' partie'+(bestWR.count>1?'s':'')+' ('+bestWR.label+')'))+
+      srow('Meilleurs kills/manche', sessLink(bestKR.idx, bestKR.avgK.toFixed(1)+' sur '+bestKR.count+' partie'+(bestKR.count>1?'s':'')+' ('+bestKR.label+')'))+
       '</div>';
 
     var avgGames = (sessList.reduce(function(s,x){ return s+x.count; }, 0) / sessList.length).toFixed(1);
