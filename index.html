@@ -673,7 +673,7 @@ var DB = {
 
 // Bump this on every change pushed to the app, so the displayed version tells
 // you whether a given device has picked up the latest reload.
-var APP_VERSION = '1.0.0';
+var APP_VERSION = '1.1.0';
 
 // ===================== STATE =====================
 var S = {
@@ -2970,7 +2970,7 @@ function rankBannerHTML(full) {
   }
 
   if (full) {
-    return '<div class="rank-banner"><div>' +
+    return '<div class="rank-banner" style="border-color:' + col + ';box-shadow:0 0 0 1px ' + col + ' inset"><div>' +
       '<div class="rank-sub">Rang actuel</div>' +
       '<div class="rank-name rank-' + r.tier + '">' + label + medalStr + '</div>' +
       '</div>' + btns + '</div>';
