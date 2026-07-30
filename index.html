@@ -271,6 +271,13 @@ select option{background:var(--bg3)}
 
   .sbar { animation-delay: calc(var(--i, 0) * 0.05s); }
 
+  /* ---- operator recommendation ---- */
+  .reco-box { border: 1px solid var(--border2); border-radius: var(--r2); padding: 12px 14px; margin-bottom: 8px; background: var(--bg3); animation: slide-in .3s ease both; }
+  .reco-label { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--text3); }
+  .reco-op { font-size: 19px; font-weight: 800; letter-spacing: .04em; margin-top: 2px; }
+  .reco-detail { font-size: 11px; color: var(--text2); margin-top: 3px; }
+  .reco-alt { font-size: 11px; color: var(--text3); margin-top: 6px; }
+
   /* ---- in-round map stats ---- */
   .mapstats-panel { margin-top: 12px; animation: slide-in .3s ease both; }
   .mapstats-header {
@@ -500,7 +507,8 @@ select option{background:var(--bg3)}
     <div class="card-title" id="r-card-title">Manche X</div>
     <div id="r-role"></div>
     <div id="r-site"></div>
-    <div class="input-group"><label>Operateur</label><select id="r-op"></select></div>
+    <div id="r-recommend"></div>
+    <div class="input-group"><label>Operateur</label><select id="r-op" onchange="S.opManuallyPicked=true"></select></div>
     <div class="input-group"><label>Kills (0-5)</label><div class="kills-picker" id="r-kills"></div></div>
     <div class="input-group"><label>Resultat</label>
       <div class="rtoggle">
@@ -673,7 +681,7 @@ var DB = {
 
 // Bump this on every change pushed to the app, so the displayed version tells
 // you whether a given device has picked up the latest reload.
-var APP_VERSION = '1.2.0';
+var APP_VERSION = '3.5.4';
 
 // ===================== STATE =====================
 var S = {
@@ -929,6 +937,145 @@ function lastRoleRound(rounds, role) {
   return null;
 }
 
+// ===================== OPERATOR RECOMMENDATION =====================
+var RECO_MIN_SAMPLE = 8; // rounds needed at a given specificity level to trust it on its own
+// Wilson score lower bound: discounts a win rate by its sample size, so a
+// 2/2 (100%) doesn't outrank a 16/20 (80%) at the same specificity level.
+function wilsonLower(wins, total) {
+  if (!total) return null;
+  var z = 1.96, p = wins / total, n = total;
+  var denom = 1 + (z * z) / n;
+  var center = p + (z * z) / (2 * n);
+  var margin = z * Math.sqrt((p * (1 - p) + (z * z) / (4 * n)) / n);
+  return Math.max(0, (center - margin) / denom);
+}
+// Picks the most specific level (site > map > global) that has at least
+// RECO_MIN_SAMPLE rounds behind it, so a well-stocked site sample can
+// override the map-wide average - but a handful of site rounds won't
+// outweigh a much larger, more reliable map/global sample.
+function pickRecoLevel(siteData, mapData, globalData) {
+  if (siteData.total >= RECO_MIN_SAMPLE) return { level: 'site', data: siteData };
+  if (mapData.total >= RECO_MIN_SAMPLE) return { level: 'map', data: mapData };
+  if (globalData.total >= RECO_MIN_SAMPLE) return { level: 'global', data: globalData };
+  var candidates = [{ level: 'site', data: siteData }, { level: 'map', data: mapData }, { level: 'global', data: globalData }]
+    .filter(function(c) { return c.data.total > 0; });
+  if (!candidates.length) return null;
+  candidates.sort(function(a, b) { return b.data.total - a.data.total; });
+  return candidates[0];
+}
+function bucketOpStats(rounds, opsList) {
+  var m = {};
+  opsList.forEach(function(o) { m[o] = { total: 0, wins: 0, kills: 0 }; });
+  rounds.forEach(function(r) {
+    if (!m[r.operator]) return; // operator renamed/removed since
+    m[r.operator].total++;
+    if (r.result === 'win') m[r.operator].wins++;
+    m[r.operator].kills += r.kills;
+  });
+  return m;
+}
+// Blends site + map + global win rates (confidence-weighted), a kill-pressure
+// bonus, an optional same-rank filter, and a light anti-repetition nudge.
+function recommendOperators(role, map, site) {
+  var opsList = sortArr(role === 'Attaquant' ? DB.opsAtk : DB.opsDef);
+  var games = DB.games;
+  var rank = loadPlayerRank();
+  var rankTier = rank ? rank.tier : null;
+
+  function rounds(filter) {
+    var out = [];
+    games.forEach(function(g) {
+      g.rounds.forEach(function(r) { if (r.role === role && filter(g, r)) out.push(r); });
+    });
+    return out;
+  }
+
+  var byRank = rankTier ? function(g) { return !!(g.rank && g.rank.tier === rankTier); } : function() { return false; };
+  var useRank = rankTier && rounds(function(g) { return byRank(g); }).length >= 8;
+  var matches = useRank ? byRank : function() { return true; };
+
+  var siteRounds = site ? rounds(function(g, r) { return g.map === map && r.site === site && matches(g); }) : [];
+  var mapRounds = rounds(function(g) { return g.map === map && matches(g); });
+  var globalRounds = rounds(function(g) { return matches(g); });
+
+  var siteStats = bucketOpStats(siteRounds, opsList);
+  var mapStats = bucketOpStats(mapRounds, opsList);
+  var globalStats = bucketOpStats(globalRounds, opsList);
+
+  var maxAvgK = 0;
+  opsList.forEach(function(o) {
+    var s = mapStats[o];
+    if (s.total) maxAvgK = Math.max(maxAvgK, s.kills / s.total);
+  });
+
+  // Light anti-repetition nudge: penalize an operator that has been used for
+  // every one of the last 3 rounds played in this role (most recent games first).
+  var recentOps = [];
+  games.forEach(function(g) {
+    if (recentOps.length >= 3) return;
+    for (var i = g.rounds.length - 1; i >= 0 && recentOps.length < 3; i--) {
+      if (g.rounds[i].role === role) recentOps.push(g.rounds[i].operator);
+    }
+  });
+  var overused = recentOps.length === 3 && recentOps[0] === recentOps[1] && recentOps[1] === recentOps[2] ? recentOps[0] : null;
+
+  var results = opsList.map(function(op) {
+    var s = siteStats[op], m = mapStats[op], gl = globalStats[op];
+    var chosen = pickRecoLevel(s, m, gl);
+
+    var killComp = maxAvgK && m.total ? (m.kills / m.total) / maxAvgK : 0;
+    var score = chosen ? wilsonLower(chosen.data.wins, chosen.data.total) * 0.85 + killComp * 0.15 : null;
+    if (score !== null && op === overused) score -= 0.04;
+
+    return {
+      op: op, score: score, basisLevel: chosen ? chosen.level : null,
+      site: { n: s.total, wr: s.total ? Math.round(s.wins / s.total * 100) : null },
+      map: { n: m.total, wr: m.total ? Math.round(m.wins / m.total * 100) : null },
+      global: { n: gl.total, wr: gl.total ? Math.round(gl.wins / gl.total * 100) : null }
+    };
+  });
+
+  var scored = results.filter(function(r) { return r.score !== null; }).sort(function(a, b) { return b.score - a.score; });
+  var unscored = results.filter(function(r) { return r.score === null; }).sort(function(a, b) { return a.op.localeCompare(b.op); });
+  return { ranked: scored.concat(unscored), usedRank: useRank, rankTier: rankTier };
+}
+function applyRecommendation(op) {
+  var sel = document.getElementById('r-op');
+  if (sel) sel.value = op;
+  S.opManuallyPicked = false;
+}
+function renderOperatorRecommendation() {
+  var el = document.getElementById('r-recommend');
+  if (!el || !S.curGame) return;
+  var role = getRoleAt(S.curRound);
+  var res = recommendOperators(role, S.curGame.map, S.site);
+  var top = res.ranked[0];
+  var sel = document.getElementById('r-op');
+
+  if (!top || top.score === null) {
+    el.innerHTML = '';
+    if (sel && !S.opManuallyPicked) { /* keep current selection, no data to suggest anything better */ }
+    return;
+  }
+
+  if (sel && !S.opManuallyPicked) sel.value = top.op;
+
+  var accentCol = role === 'Attaquant' ? 'var(--atk)' : 'var(--def)';
+  var basisData = top.basisLevel === 'site' ? top.site : top.basisLevel === 'map' ? top.map : top.global;
+  var basisLabel = top.basisLevel === 'site' ? 'sur ce site' : top.basisLevel === 'map' ? 'sur cette map' : 'au global';
+  var basis = basisData.wr + '% WR ' + basisLabel + ' (' + basisData.n + ' manche' + (basisData.n > 1 ? 's' : '') + ')';
+
+  var alt = res.ranked.slice(1, 3).filter(function(r) { return r.score !== null; })
+    .map(function(r) { return r.op + ' (' + Math.round(r.score * 100) + ')'; }).join(', ');
+
+  el.innerHTML = '<div class="reco-box" style="border-color:' + accentCol + '">' +
+    '<div class="reco-label">Recommandation' + (res.usedRank ? ' &middot; rang ' + res.rankTier : '') + '</div>' +
+    '<div class="reco-op" style="color:' + accentCol + '">' + top.op + '</div>' +
+    '<div class="reco-detail">' + basis + '</div>' +
+    (alt ? '<div class="reco-alt">Autres options : ' + alt + '</div>' : '') +
+    '</div>';
+}
+
 // ===================== ROUND =====================
 function renderRound() {
   var g=S.curGame, i=S.curRound;
@@ -980,36 +1127,9 @@ function renderRound() {
 
   var ops=sortArr(role==='Attaquant'?DB.opsAtk:DB.opsDef);
   var sel=document.getElementById('r-op');
-  var prev=sel.value;
-
-  // Find best operator by WR on this map+role (fallback: keep prev or first)
-  var bestOp = (function() {
-    var mapRnds = [];
-    DB.games.forEach(function(pg) {
-      if (pg.map !== g.map) return;
-      pg.rounds.forEach(function(r) { if (r.role === role) mapRnds.push(r); });
-    });
-    if (!mapRnds.length) return null;
-    var om = {};
-    mapRnds.forEach(function(r) {
-      if (!om[r.operator]) om[r.operator] = { wins: 0, total: 0 };
-      om[r.operator].total++;
-      if (r.result === 'win') om[r.operator].wins++;
-    });
-    var best = null, bestWR = -1;
-    Object.keys(om).forEach(function(op) {
-      if (ops.indexOf(op) === -1) return; // op must be in current list
-      var wr = om[op].wins / om[op].total;
-      if (wr > bestWR || (wr === bestWR && om[op].total > (best ? om[best].total : 0))) {
-        bestWR = wr; best = op;
-      }
-    });
-    return best;
-  })();
-
   sel.innerHTML=ops.map(function(o){ return '<option>'+o+'</option>'; }).join('');
-  if (bestOp) sel.value = bestOp;
-  else if (ops.indexOf(prev) !== -1) sel.value = prev;
+  S.opManuallyPicked = false;
+  renderOperatorRecommendation();
 
   S.kills=0; buildKills(0);
   S.result='win';
@@ -1039,6 +1159,7 @@ function selectSite(siteName, btn) {
     S.site = siteName;
   }
   renderSiteStats(S.curGame.map, S.site, role);
+  renderOperatorRecommendation();
 }
 
 function renderSiteStats(mapName, siteName, role) {
