@@ -391,7 +391,7 @@ select option{background:var(--bg3)}
   .rank-medal { font-size: 13px; color: var(--text3); margin-left: 4px; }
 
   /* rank colors */
-  .rank-Rookie    { color: #8a9bb0; }
+  .rank-Rookie    { color: #4caf70; }
   .rank-Bronze    { color: #cd7f32; }
   .rank-Silver    { color: #aab8c2; }
   .rank-Gold      { color: #ffd700; }
@@ -673,7 +673,7 @@ var DB = {
 
 // Bump this on every change pushed to the app, so the displayed version tells
 // you whether a given device has picked up the latest reload.
-var APP_VERSION = '1.1.0';
+var APP_VERSION = '1.2.0';
 
 // ===================== STATE =====================
 var S = {
@@ -2519,8 +2519,8 @@ function renderCalendarHeatmap(games, year) {
     counts[key] = (counts[key] || 0) + 1;
   });
 
-  var RANK_HEX = { Rookie:'#8a9bb0', Bronze:'#cd7f32', Silver:'#aab8c2', Gold:'#ffd700', Platinium:'#40e0d0', Diamond:'#6a3aa0', Master:'#e0556f' };
-  var NO_RANK_HEX = '#4caf70';
+  var RANK_HEX = { Rookie:'#4caf70', Bronze:'#cd7f32', Silver:'#aab8c2', Gold:'#ffd700', Platinium:'#40e0d0', Diamond:'#6a3aa0', Master:'#e0556f' };
+  var NO_RANK_HEX = '#e2883c';
   var BG_HEX = '#1a1a24';
 
   function hexToRgb(hex) {
@@ -2629,7 +2629,7 @@ function renderCalendarHeatmap(games, year) {
     '<div class="cal-day" style="background:' + mixHex('#c8c8d4', BG_HEX, 0.55) + '"></div>' +
     '<div class="cal-day" style="background:' + mixHex('#c8c8d4', BG_HEX, 0.75) + '"></div>' +
     '<div class="cal-day" style="background:' + mixHex('#c8c8d4', BG_HEX, 1) + '"></div> Plus</div>' +
-    '<div style="font-size:11px;color:var(--text3);margin-top:4px;text-align:right">La teinte de chaque jour reflete le rang de la derniere partie jouee ce jour-la (vert si non renseigne)</div>' +
+    '<div style="font-size:11px;color:var(--text3);margin-top:4px;text-align:right">La teinte de chaque jour reflete le rang de la derniere partie jouee ce jour-la (orange si non renseigne)</div>' +
     '<div style="margin-top:10px;font-size:11px;color:var(--text3)">' + activeDays + ' jour(s) actif(s) &mdash; ' + totalGamesInRange + ' partie(s) en ' + year + '</div>' +
     '</div>';
 }
@@ -2903,7 +2903,7 @@ function rankLabel(r) {
   return r.tier === 'Master' ? 'Master' : r.tier + ' ' + r.sub;
 }
 function rankColor(tier) {
-  var m = { Rookie:'#8a9bb0', Bronze:'#cd7f32', Silver:'#aab8c2',
+  var m = { Rookie:'#4caf70', Bronze:'#cd7f32', Silver:'#aab8c2',
             Gold:'#ffd700', Platinium:'#40e0d0', Diamond:'#6a3aa0', Master:'#e0556f' };
   return m[tier] || 'var(--text)';
 }
