@@ -681,7 +681,7 @@ var DB = {
 
 // Bump this on every change pushed to the app, so the displayed version tells
 // you whether a given device has picked up the latest reload.
-var APP_VERSION = '3.5.4';
+var APP_VERSION = '3.5.5';
 
 // ===================== STATE =====================
 var S = {
@@ -893,11 +893,15 @@ var BOMB_SITES = {
 };
 function ensureBombSitesInit() {
   var bs = DB.bombSites;
-  if (!bs) {
-    bs = {};
-    Object.keys(BOMB_SITES).forEach(function(m){ bs[m] = BOMB_SITES[m].map(function(s){ return { c: s.c, n: s.n }; }); });
-    DB.bombSites = bs;
-  }
+  var changed = false;
+  if (!bs) { bs = {}; changed = true; }
+  // Backfill any known map with no entry at all (e.g. an old cloud sync from
+  // before bomb sites existed). A map the user emptied on purpose has an
+  // entry of [] rather than being absent, so this never overrides that.
+  Object.keys(BOMB_SITES).forEach(function(m) {
+    if (!bs[m]) { bs[m] = BOMB_SITES[m].map(function(s){ return { c: s.c, n: s.n }; }); changed = true; }
+  });
+  if (changed) DB.bombSites = bs;
   return bs;
 }
 function getBombSites(map) {
@@ -915,6 +919,7 @@ function addBombSite(map) {
   if (!bs[map]) bs[map] = [];
   bs[map].push({ c: code || '?', n: name });
   DB.bombSites = bs;
+  autoPushToGist();
   renderManage();
 }
 function removeBombSite(map, idx) {
@@ -923,6 +928,7 @@ function removeBombSite(map, idx) {
   if (!bs[map]) return;
   bs[map].splice(idx, 1);
   DB.bombSites = bs;
+  autoPushToGist();
   renderManage();
 }
 function siteLabel(map, siteName) {
@@ -2981,6 +2987,7 @@ function addItem(tab){
   if(arr.indexOf(val)!==-1){ alert(val+' existe deja.'); return; }
   arr.push(val);
   if(tab==='maps') DB.maps=arr; else if(tab==='atk') DB.opsAtk=arr; else DB.opsDef=arr;
+  autoPushToGist();
   renderManage();
 }
 function removeItem(tab,item){
@@ -2993,6 +3000,7 @@ function removeItem(tab,item){
     var bs = ensureBombSitesInit();
     if (bs[item]) { delete bs[item]; DB.bombSites = bs; }
   }
+  autoPushToGist();
   renderManage();
 }
 
