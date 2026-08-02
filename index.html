@@ -681,7 +681,7 @@ var DB = {
 
 // Bump this on every change pushed to the app, so the displayed version tells
 // you whether a given device has picked up the latest reload.
-var APP_VERSION = '3.5.5';
+var APP_VERSION = '3.5.6';
 
 // ===================== STATE =====================
 var S = {
@@ -889,7 +889,8 @@ var BOMB_SITES = {
   'Clubhouse': [{c:'2',n:'Bedroom/Gym'},{c:'2',n:'Cash/CCTV'},{c:'1',n:'Bar/Stage'},{c:'B',n:'Armory'}],
   'House':     [{c:'2',n:'Renovation'},{c:'2',n:'Master bedroom'},{c:'1',n:'Music/TV'},{c:'B',n:'Gym/Garage'}],
   'Oregon':    [{c:'2',n:'Kids dormitory'},{c:'1',n:'Dining/Kitchen'},{c:'1',n:'Kitchen/Meeting Room'},{c:'B',n:'Laundry/Supply'}],
-  'Villa':     [{c:'2',n:'Aviator room/Gaming'},{c:'2',n:'Trophy/Statue'},{c:'1',n:'Library/Living room'},{c:'1',n:'Kitchen/Dining'}]
+  'Villa':     [{c:'2',n:'Aviator room/Gaming'},{c:'2',n:'Trophy/Statue'},{c:'1',n:'Library/Living room'},{c:'1',n:'Kitchen/Dining'}],
+  'Summit':    [{c:'2',n:'Presidential Suite/Meeting Room'},{c:'2',n:'Forest Room/Glacier Suite'},{c:'1',n:'Kitchen/Dining Room'},{c:'1',n:'Gym/Atrium'}]
 };
 function ensureBombSitesInit() {
   var bs = DB.bombSites;
@@ -944,31 +945,12 @@ function lastRoleRound(rounds, role) {
 }
 
 // ===================== OPERATOR RECOMMENDATION =====================
-var RECO_MIN_SAMPLE = 8; // rounds needed at a given specificity level to trust it on its own
-// Wilson score lower bound: discounts a win rate by its sample size, so a
-// 2/2 (100%) doesn't outrank a 16/20 (80%) at the same specificity level.
-function wilsonLower(wins, total) {
-  if (!total) return null;
-  var z = 1.96, p = wins / total, n = total;
-  var denom = 1 + (z * z) / n;
-  var center = p + (z * z) / (2 * n);
-  var margin = z * Math.sqrt((p * (1 - p) + (z * z) / (4 * n)) / n);
-  return Math.max(0, (center - margin) / denom);
-}
-// Picks the most specific level (site > map > global) that has at least
-// RECO_MIN_SAMPLE rounds behind it, so a well-stocked site sample can
-// override the map-wide average - but a handful of site rounds won't
-// outweigh a much larger, more reliable map/global sample.
-function pickRecoLevel(siteData, mapData, globalData) {
-  if (siteData.total >= RECO_MIN_SAMPLE) return { level: 'site', data: siteData };
-  if (mapData.total >= RECO_MIN_SAMPLE) return { level: 'map', data: mapData };
-  if (globalData.total >= RECO_MIN_SAMPLE) return { level: 'global', data: globalData };
-  var candidates = [{ level: 'site', data: siteData }, { level: 'map', data: mapData }, { level: 'global', data: globalData }]
-    .filter(function(c) { return c.data.total > 0; });
-  if (!candidates.length) return null;
-  candidates.sort(function(a, b) { return b.data.total - a.data.total; });
-  return candidates[0];
-}
+var RECO_MIN_SAMPLE = 8;      // rounds needed at a level before it's trusted at all
+var RECO_GAMES_SATURATION = 30; // rounds beyond this add ~no extra "sample size" credit
+var RECO_KILL_CEILING = 2.0;    // avg kills/round treated as "as good as it gets"
+var RECO_LEVEL_WEIGHT = { site: 3, map: 2, global: 1 }; // representativeness: site > map > global
+var RECO_WR_WEIGHT = 0.65, RECO_GAMES_WEIGHT = 0.25, RECO_KILLS_WEIGHT = 0.10; // WR > games played > kills
+
 function bucketOpStats(rounds, opsList) {
   var m = {};
   opsList.forEach(function(o) { m[o] = { total: 0, wins: 0, kills: 0 }; });
@@ -980,8 +962,19 @@ function bucketOpStats(rounds, opsList) {
   });
   return m;
 }
-// Blends site + map + global win rates (confidence-weighted), a kill-pressure
-// bonus, an optional same-rank filter, and a light anti-repetition nudge.
+// One level's (site/map/global) contribution: win rate matters most, then how
+// much it's backed by (games played), then kill pressure - in that order of
+// weight. Only ever called on a level that already cleared RECO_MIN_SAMPLE.
+function levelScore(data) {
+  var wr = data.wins / data.total;
+  var normGames = Math.min(1, Math.log(1 + data.total) / Math.log(1 + RECO_GAMES_SATURATION));
+  var normKills = Math.min(1, (data.kills / data.total) / RECO_KILL_CEILING);
+  return RECO_WR_WEIGHT * wr + RECO_GAMES_WEIGHT * normGames + RECO_KILLS_WEIGHT * normKills;
+}
+// Combines site/map/global scores per operator (site > map > global), skipping
+// any level that doesn't have enough rounds behind it rather than penalizing a
+// gap - an operator you've never played on this site just doesn't get a site
+// term, he isn't compared against one he can't have.
 function recommendOperators(role, map, site) {
   var opsList = sortArr(role === 'Attaquant' ? DB.opsAtk : DB.opsDef);
   var games = DB.games;
@@ -997,7 +990,7 @@ function recommendOperators(role, map, site) {
   }
 
   var byRank = rankTier ? function(g) { return !!(g.rank && g.rank.tier === rankTier); } : function() { return false; };
-  var useRank = rankTier && rounds(function(g) { return byRank(g); }).length >= 8;
+  var useRank = rankTier && rounds(function(g) { return byRank(g); }).length >= RECO_MIN_SAMPLE;
   var matches = useRank ? byRank : function() { return true; };
 
   var siteRounds = site ? rounds(function(g, r) { return g.map === map && r.site === site && matches(g); }) : [];
@@ -1007,12 +1000,6 @@ function recommendOperators(role, map, site) {
   var siteStats = bucketOpStats(siteRounds, opsList);
   var mapStats = bucketOpStats(mapRounds, opsList);
   var globalStats = bucketOpStats(globalRounds, opsList);
-
-  var maxAvgK = 0;
-  opsList.forEach(function(o) {
-    var s = mapStats[o];
-    if (s.total) maxAvgK = Math.max(maxAvgK, s.kills / s.total);
-  });
 
   // Light anti-repetition nudge: penalize an operator that has been used for
   // every one of the last 3 rounds played in this role (most recent games first).
@@ -1027,14 +1014,25 @@ function recommendOperators(role, map, site) {
 
   var results = opsList.map(function(op) {
     var s = siteStats[op], m = mapStats[op], gl = globalStats[op];
-    var chosen = pickRecoLevel(s, m, gl);
+    var levels = [];
+    if (s.total >= RECO_MIN_SAMPLE) levels.push({ level: 'site', data: s });
+    if (m.total >= RECO_MIN_SAMPLE) levels.push({ level: 'map', data: m });
+    if (gl.total >= RECO_MIN_SAMPLE) levels.push({ level: 'global', data: gl });
 
-    var killComp = maxAvgK && m.total ? (m.kills / m.total) / maxAvgK : 0;
-    var score = chosen ? wilsonLower(chosen.data.wins, chosen.data.total) * 0.85 + killComp * 0.15 : null;
-    if (score !== null && op === overused) score -= 0.04;
+    var score = null;
+    if (levels.length) {
+      var wSum = 0, vSum = 0;
+      levels.forEach(function(l) {
+        var w = RECO_LEVEL_WEIGHT[l.level];
+        wSum += w;
+        vSum += w * levelScore(l.data);
+      });
+      score = vSum / wSum;
+      if (op === overused) score -= 0.04;
+    }
 
     return {
-      op: op, score: score, basisLevel: chosen ? chosen.level : null,
+      op: op, score: score, levelsUsed: levels.map(function(l){ return l.level; }),
       site: { n: s.total, wr: s.total ? Math.round(s.wins / s.total * 100) : null },
       map: { n: m.total, wr: m.total ? Math.round(m.wins / m.total * 100) : null },
       global: { n: gl.total, wr: gl.total ? Math.round(gl.wins / gl.total * 100) : null }
@@ -1059,17 +1057,19 @@ function renderOperatorRecommendation() {
   var sel = document.getElementById('r-op');
 
   if (!top || top.score === null) {
-    el.innerHTML = '';
-    if (sel && !S.opManuallyPicked) { /* keep current selection, no data to suggest anything better */ }
+    el.innerHTML = '<div class="reco-box reco-empty"><div class="reco-label">Recommandation</div>' +
+      '<div class="reco-detail">Pas encore assez de manches jouees ici pour recommander un operateur (minimum '+RECO_MIN_SAMPLE+').</div></div>';
     return;
   }
 
   if (sel && !S.opManuallyPicked) sel.value = top.op;
 
   var accentCol = role === 'Attaquant' ? 'var(--atk)' : 'var(--def)';
-  var basisData = top.basisLevel === 'site' ? top.site : top.basisLevel === 'map' ? top.map : top.global;
-  var basisLabel = top.basisLevel === 'site' ? 'sur ce site' : top.basisLevel === 'map' ? 'sur cette map' : 'au global';
-  var basis = basisData.wr + '% WR ' + basisLabel + ' (' + basisData.n + ' manche' + (basisData.n > 1 ? 's' : '') + ')';
+  var levelLabel = { site: 'Site', map: 'Map', global: 'Global' };
+  var basis = top.levelsUsed.map(function(l) {
+    var d = top[l];
+    return levelLabel[l] + ' : ' + d.wr + '% (' + d.n + ' manche' + (d.n > 1 ? 's' : '') + ')';
+  }).join(' &middot; ');
 
   var alt = res.ranked.slice(1, 3).filter(function(r) { return r.score !== null; })
     .map(function(r) { return r.op + ' (' + Math.round(r.score * 100) + ')'; }).join(', ');
