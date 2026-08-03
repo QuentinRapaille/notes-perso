@@ -707,7 +707,7 @@ var DB = {
 
 // Bump this on every change pushed to the app, so the displayed version tells
 // you whether a given device has picked up the latest reload.
-var APP_VERSION = '3.6.2';
+var APP_VERSION = '3.6.3';
 
 // ===================== STATE =====================
 var S = {
@@ -862,7 +862,7 @@ function startHistRunner() {
 
   function runPhase() {
     runner.style.transition = 'none';
-    runner.style.transform = 'rotate(0deg)';
+    runner.style.transform = 'scaleX(-1)'; // the emoji glyph faces left by default; mirror it to face the direction of travel
     runner.style.opacity = '1';
     runner.textContent = '\u{1F3C3}';
     runner.style.left = '0%';
@@ -881,7 +881,7 @@ function startHistRunner() {
   }
   function diePhase() {
     runner.style.transition = 'transform .4s ease, opacity .6s ease .2s';
-    runner.style.transform = 'rotate(85deg)';
+    runner.style.transform = 'scaleX(-1) rotate(85deg)';
     runner.style.opacity = '0';
     runner.textContent = '\u{1F480}';
     next(900, runPhase);
