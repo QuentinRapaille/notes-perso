@@ -99,6 +99,21 @@ body.home-active::before { opacity:0.05; animation:hex-spin 90s linear infinite;
   mask-image: radial-gradient(ellipse 42% 78% at 50% 38%, black 30%, transparent 88%);
 }
 #op-bg.visible{opacity:0.85}
+
+/* Generic page background: fond_home.jpg on the home screen, fond.jpg
+   everywhere else - except while an operator's own portrait is showing
+   (#op-bg above), which takes over instead. */
+#page-bg{
+  position:fixed; inset:0; z-index:0;
+  background-repeat:no-repeat;
+  background-position:center;
+  background-size:cover;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .4s ease, background-image .1s;
+}
+#page-bg.visible{opacity:0.3}
+#page-bg.home{opacity:0.4}
 @keyframes rank-breathe {
   0%,100% { box-shadow:0 0 0 1px var(--rank-glow) inset, 0 0 0 0 var(--rank-glow); }
   50%     { box-shadow:0 0 0 1px var(--rank-glow) inset, 0 0 22px 3px var(--rank-glow); }
@@ -486,6 +501,7 @@ select option{background:var(--bg3)}
 </style>
 </head>
 <body>
+<div id="page-bg"></div>
 <div id="op-bg"></div>
 <div class="app">
 
@@ -737,7 +753,7 @@ var DB = {
 
 // Bump this on every change pushed to the app, so the displayed version tells
 // you whether a given device has picked up the latest reload.
-var APP_VERSION = '3.6.8';
+var APP_VERSION = '3.7.0';
 
 // ===================== STATE =====================
 var S = {
@@ -766,7 +782,7 @@ function goScreen(id) {
   document.querySelectorAll('.screen').forEach(function(el){ el.classList.remove('active'); });
   document.getElementById(id).classList.add('active');
   document.body.classList.toggle('home-active', id === 's-home');
-  if (id !== 's-stats') hideOpBg();
+  updateBackgrounds();
 }
 function goHome() { S.histShown = 5; goScreen('s-home'); renderHome(); }
 function goNewGame() {
@@ -2023,22 +2039,34 @@ function setStatsTab(el, tab) {
   el.classList.add('active'); S.statsTab=tab; S.opDetail=null; S.mapDetail=null; renderStats();
   animateStatsContentIn();
 }
-// Full-viewport portrait shown behind the whole screen while looking at one
-// operator's detail (see #op-bg); hidden everywhere else.
-function showOpBg(opName) {
-  var bg = document.getElementById('op-bg');
-  if (!bg) return;
-  bg.style.backgroundImage = 'url("images/operators/portrait/' + encodeURIComponent(opName) + '.jpg")';
-  bg.classList.add('visible');
-}
-function hideOpBg() {
-  var bg = document.getElementById('op-bg');
-  if (bg) bg.classList.remove('visible');
+// Picks which fixed full-viewport background is showing: the current
+// operator's own portrait (#op-bg) while viewing their detail screen, or the
+// generic page background (#page-bg) everywhere else - fond_home.jpg on home,
+// fond.jpg elsewhere. Called on every screen change and every stats
+// tab/detail change, so it's always in sync with whatever's on screen.
+function updateBackgrounds() {
+  var opBg = document.getElementById('op-bg');
+  var pageBg = document.getElementById('page-bg');
+  if (!opBg || !pageBg) return;
+  var isHome = document.getElementById('s-home').classList.contains('active');
+  var onStats = document.getElementById('s-stats').classList.contains('active');
+  var showingOperator = onStats && S.statsTab === 'operators' && !!S.opDetail;
+
+  if (showingOperator) {
+    opBg.style.backgroundImage = 'url("images/operators/portrait/' + encodeURIComponent(S.opDetail) + '.jpg")';
+    opBg.classList.add('visible');
+    pageBg.classList.remove('visible');
+  } else {
+    opBg.classList.remove('visible');
+    pageBg.style.backgroundImage = isHome ? 'url("images/backgrounds/fond_home.jpg")' : 'url("images/backgrounds/fond.jpg")';
+    pageBg.classList.toggle('home', isHome);
+    pageBg.classList.add('visible');
+  }
 }
 function renderStats() {
   var games=DB.games, el=document.getElementById('stats-content');
   var rounds=[].concat.apply([],games.map(function(g){ return g.rounds; }));
-  hideOpBg();
+  updateBackgrounds();
   if(!games.length){ el.innerHTML='<div class="empty">Pas encore de donnees</div>'; return; }
 
   if(S.statsTab==='global'){
@@ -2101,7 +2129,7 @@ function renderStats() {
   }
   if(S.statsTab==='operators'){
     if(!S.opDetail){ renderOperatorsList(el,rounds,games); return; }
-    else { showOpBg(S.opDetail); renderOperatorDetail(el,rounds,games,S.opDetail); return; }
+    else { renderOperatorDetail(el,rounds,games,S.opDetail); return; }
   }
   if(S.statsTab==='maps'){
     if(!S.mapDetail){ renderMapsList(el,games); return; }
@@ -3593,6 +3621,7 @@ function autoPullFromGist() {
 if (DB.activeSess) document.body.classList.add('session-active');
 document.body.classList.add('home-active'); // s-home is the screen shown by default
 updateAccentColors();
+updateBackgrounds();
 document.getElementById('app-version').textContent = APP_VERSION;
 renderHome();
 </script>
