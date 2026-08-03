@@ -75,7 +75,15 @@ body::before{
   opacity:0.03;
   pointer-events:none;
   z-index:0;
+  transition:opacity .4s ease;
 }
+@keyframes hex-spin { from { transform:translate(-50%,-50%) rotate(0deg); } to { transform:translate(-50%,-50%) rotate(360deg); } }
+body.home-active::before { opacity:0.05; animation:hex-spin 90s linear infinite; }
+@keyframes rank-breathe {
+  0%,100% { box-shadow:0 0 0 1px var(--rank-glow) inset, 0 0 0 0 var(--rank-glow); }
+  50%     { box-shadow:0 0 0 1px var(--rank-glow) inset, 0 0 22px 3px var(--rank-glow); }
+}
+body.home-active .rank-banner { animation:rank-breathe 3.2s ease-in-out infinite; }
 .app{position:relative;z-index:1}
 .app{max-width:680px;margin:0 auto;padding:24px 16px 60px}
 .screen{display:none}.screen.active{display:block}
@@ -695,7 +703,7 @@ var DB = {
 
 // Bump this on every change pushed to the app, so the displayed version tells
 // you whether a given device has picked up the latest reload.
-var APP_VERSION = '3.5.9';
+var APP_VERSION = '3.6.1';
 
 // ===================== STATE =====================
 var S = {
@@ -723,6 +731,7 @@ var S = {
 function goScreen(id) {
   document.querySelectorAll('.screen').forEach(function(el){ el.classList.remove('active'); });
   document.getElementById(id).classList.add('active');
+  document.body.classList.toggle('home-active', id === 's-home');
 }
 function goHome() { S.histShown = 5; goScreen('s-home'); renderHome(); }
 function goNewGame() {
@@ -819,9 +828,13 @@ function animateHomeIn() {
   document.querySelectorAll('#home-metrics .metric').forEach(function(m){ items.push(m); });
   document.querySelectorAll('#home-hist .hist-item, #home-hist .sess-label').forEach(function(h){ items.push(h); });
   items.forEach(function(el, i) {
+    var entrance = 'fadeSlideUp .4s cubic-bezier(.22,1,.36,1) ' + (i * 0.05) + 's both';
+    // The rank banner also has a permanent breathing glow (CSS, .rank-banner);
+    // an inline animation would otherwise override it, so chain both here.
+    var full = el === banner ? entrance + ', rank-breathe 3.2s ease-in-out infinite' : entrance;
     el.style.animation = 'none';
     el.offsetHeight;
-    el.style.animation = 'fadeSlideUp .4s cubic-bezier(.22,1,.36,1) ' + (i * 0.05) + 's both';
+    el.style.animation = full;
   });
 }
 
@@ -3174,7 +3187,7 @@ function rankBannerHTML(full) {
   }
 
   if (full) {
-    return '<div class="rank-banner" style="border-color:' + col + ';box-shadow:0 0 0 1px ' + col + ' inset"><div>' +
+    return '<div class="rank-banner" style="border-color:' + col + ';box-shadow:0 0 0 1px ' + col + ' inset;--rank-glow:' + col + '"><div>' +
       '<div class="rank-sub">Rang actuel</div>' +
       '<div class="rank-name rank-' + r.tier + '">' + label + medalStr + '</div>' +
       '</div>' + btns + '</div>';
@@ -3480,6 +3493,7 @@ function autoPullFromGist() {
 
 // ===================== INIT =====================
 if (DB.activeSess) document.body.classList.add('session-active');
+document.body.classList.add('home-active'); // s-home is the screen shown by default
 updateAccentColors();
 document.getElementById('app-version').textContent = APP_VERSION;
 renderHome();
