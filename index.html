@@ -388,6 +388,14 @@ select option{background:var(--bg3)}
   .map-hero::before { content:''; position:absolute; inset:0; background:linear-gradient(180deg, rgba(10,10,15,0) 30%, rgba(10,10,15,0.88) 100%); }
   .map-hero .detail-name { position:relative; z-index:1; text-shadow:0 2px 10px rgba(0,0,0,0.85); }
 
+  /* ---- operator hero banner (portrait photo behind the op name) ---- */
+  .op-hero { position:relative; height:150px; border-radius:var(--r2); overflow:hidden; margin-bottom:14px; background-size:cover; background-position:center top; background-color:var(--bg2); display:flex; align-items:flex-end; padding:14px; }
+  .op-hero::before { content:''; position:absolute; inset:0; background:linear-gradient(180deg, rgba(10,10,15,0) 20%, rgba(10,10,15,0.92) 100%); }
+  .op-hero .op-hero-inner { position:relative; z-index:1; }
+  .op-hero .detail-name { text-shadow:0 2px 10px rgba(0,0,0,0.85); display:flex; align-items:center; gap:8px; }
+  .op-logo { width:20px; height:20px; object-fit:contain; vertical-align:middle; flex:none; }
+  .op-logo-sm { width:16px; height:16px; object-fit:contain; vertical-align:middle; flex:none; margin-right:5px; }
+
   /* ---- stat pill row ---- */
   .pill-row { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
   .pill { background:var(--bg3); border:1px solid var(--border); border-radius:20px; padding:4px 11px; font-size:11px; color:var(--text2); }
@@ -712,7 +720,7 @@ var DB = {
 
 // Bump this on every change pushed to the app, so the displayed version tells
 // you whether a given device has picked up the latest reload.
-var APP_VERSION = '3.6.4';
+var APP_VERSION = '3.6.5';
 
 // ===================== STATE =====================
 var S = {
@@ -2312,8 +2320,9 @@ function renderOperatorsList(el, rounds, games) {
       });
       var kwrStr = v.killWinRate !== null ? v.killWinRate + '%' : '--';
       var wrCol = v.winRate >= 55 ? 'var(--win)' : v.winRate <= 40 ? 'var(--loss)' : 'var(--text)';
+      var logoUrl = 'images/operators/logo/' + encodeURIComponent(op) + '.png';
       return '<tr onclick="openOpDetail(\''+op+'\')" style="cursor:pointer">'+
-        '<td><span style="color:'+col2+';font-weight:700">'+op+'</span></td>'+
+        '<td style="white-space:nowrap"><img class="op-logo-sm" src="'+logoUrl+'" onerror="this.remove()"><span style="color:'+col2+';font-weight:700">'+op+'</span></td>'+
         '<td>'+v.total+'</td>'+
         '<td style="color:'+wrCol+'">'+v.winRate+'%</td>'+
         '<td>'+v.avgKills.toFixed(1)+'</td>'+
@@ -2429,10 +2438,14 @@ function renderOperatorDetail(el, rounds, games, opName) {
 
   var wrCol2 = v.winRate >= 55 ? 'var(--win)' : v.winRate <= 40 ? 'var(--loss)' : 'var(--text)';
 
+  var opPortraitUrl = 'images/operators/portrait/' + encodeURIComponent(opName) + '.jpg';
+  var opLogoUrl = 'images/operators/logo/' + encodeURIComponent(opName) + '.png';
   var html = '<button class="detail-back" onclick="S.opDetail=null;renderStats();animateStatsContentIn()">&lt; Retour aux operateurs</button>'+
-    '<div class="detail-header">'+
-    '<div><div class="detail-name" style="color:'+accentCol+'">'+opName+'</div>'+
-    '<span class="badge '+roleClass+'" style="margin-top:4px">'+roleLabel+'</span></div>'+
+    '<div class="op-hero" style="background-image:url(&quot;'+opPortraitUrl+'&quot;)">'+
+    '<div class="op-hero-inner">'+
+    '<div class="detail-name" style="color:'+accentCol+'"><img class="op-logo" src="'+opLogoUrl+'" onerror="this.remove()">'+opName+'</div>'+
+    '<span class="badge '+roleClass+'" style="margin-top:4px">'+roleLabel+'</span>'+
+    '</div>'+
     '</div>'+
     '<div class="pill-row">'+
     '<span class="pill">Manches : <strong>'+v.total+'</strong></span>'+
