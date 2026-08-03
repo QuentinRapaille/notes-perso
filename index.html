@@ -79,6 +79,24 @@ body::before{
 }
 @keyframes hex-spin { from { transform:translate(-50%,-50%) rotate(0deg); } to { transform:translate(-50%,-50%) rotate(360deg); } }
 body.home-active::before { opacity:0.05; animation:hex-spin 90s linear infinite; }
+
+/* Full operator portrait shown whole (contain, not cropped) behind the whole
+   screen rather than in a short cropped banner - so stats don't get pushed
+   down the page. background-blend-mode:multiply darkens the light/white
+   backgrounds some source portraits have, so they don't clash with the dark
+   theme, without needing to touch the image files themselves. */
+#op-bg{
+  position:fixed; inset:0; z-index:0;
+  background-color:var(--bg);
+  background-repeat:no-repeat;
+  background-position:center 8%;
+  background-size:contain;
+  background-blend-mode:multiply;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .4s ease, background-image .1s;
+}
+#op-bg.visible{opacity:0.6}
 @keyframes rank-breathe {
   0%,100% { box-shadow:0 0 0 1px var(--rank-glow) inset, 0 0 0 0 var(--rank-glow); }
   50%     { box-shadow:0 0 0 1px var(--rank-glow) inset, 0 0 22px 3px var(--rank-glow); }
@@ -381,7 +399,7 @@ select option{background:var(--bg3)}
   .detail-back { cursor:pointer; background:none; border:none; color:var(--accent); font-family:inherit; font-size:12px; padding:0 0 10px 0; display:block; letter-spacing:.06em; }
   .detail-back:hover { text-decoration:underline; }
   .detail-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:8px; }
-  .detail-name { font-size:20px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+  .detail-name { font-size:20px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; display:flex; align-items:center; gap:8px; }
 
   /* ---- map hero banner (background photo behind the map name) ---- */
   .map-hero { position:relative; height:130px; border-radius:var(--r2); overflow:hidden; margin-bottom:14px; background-size:cover; background-position:center; background-color:var(--bg2); display:flex; align-items:flex-end; padding:14px; }
@@ -389,10 +407,6 @@ select option{background:var(--bg3)}
   .map-hero .detail-name { position:relative; z-index:1; text-shadow:0 2px 10px rgba(0,0,0,0.85); }
 
   /* ---- operator hero banner (portrait photo behind the op name) ---- */
-  .op-hero { position:relative; height:150px; border-radius:var(--r2); overflow:hidden; margin-bottom:14px; background-size:cover; background-position:center top; background-color:var(--bg2); display:flex; align-items:flex-end; padding:14px; }
-  .op-hero::before { content:''; position:absolute; inset:0; background:linear-gradient(180deg, rgba(10,10,15,0) 20%, rgba(10,10,15,0.92) 100%); }
-  .op-hero .op-hero-inner { position:relative; z-index:1; }
-  .op-hero .detail-name { text-shadow:0 2px 10px rgba(0,0,0,0.85); display:flex; align-items:center; gap:8px; }
   .op-logo { width:20px; height:20px; object-fit:contain; vertical-align:middle; flex:none; }
   .op-logo-sm { width:16px; height:16px; object-fit:contain; vertical-align:middle; flex:none; margin-right:5px; }
 
@@ -470,6 +484,7 @@ select option{background:var(--bg3)}
 </style>
 </head>
 <body>
+<div id="op-bg"></div>
 <div class="app">
 
 <!-- HOME -->
@@ -720,7 +735,7 @@ var DB = {
 
 // Bump this on every change pushed to the app, so the displayed version tells
 // you whether a given device has picked up the latest reload.
-var APP_VERSION = '3.6.5';
+var APP_VERSION = '3.6.6';
 
 // ===================== STATE =====================
 var S = {
@@ -749,6 +764,7 @@ function goScreen(id) {
   document.querySelectorAll('.screen').forEach(function(el){ el.classList.remove('active'); });
   document.getElementById(id).classList.add('active');
   document.body.classList.toggle('home-active', id === 's-home');
+  if (id !== 's-stats') hideOpBg();
 }
 function goHome() { S.histShown = 5; goScreen('s-home'); renderHome(); }
 function goNewGame() {
@@ -2005,9 +2021,22 @@ function setStatsTab(el, tab) {
   el.classList.add('active'); S.statsTab=tab; S.opDetail=null; S.mapDetail=null; renderStats();
   animateStatsContentIn();
 }
+// Full-viewport portrait shown behind the whole screen while looking at one
+// operator's detail (see #op-bg); hidden everywhere else.
+function showOpBg(opName) {
+  var bg = document.getElementById('op-bg');
+  if (!bg) return;
+  bg.style.backgroundImage = 'url("images/operators/portrait/' + encodeURIComponent(opName) + '.jpg")';
+  bg.classList.add('visible');
+}
+function hideOpBg() {
+  var bg = document.getElementById('op-bg');
+  if (bg) bg.classList.remove('visible');
+}
 function renderStats() {
   var games=DB.games, el=document.getElementById('stats-content');
   var rounds=[].concat.apply([],games.map(function(g){ return g.rounds; }));
+  hideOpBg();
   if(!games.length){ el.innerHTML='<div class="empty">Pas encore de donnees</div>'; return; }
 
   if(S.statsTab==='global'){
@@ -2070,7 +2099,7 @@ function renderStats() {
   }
   if(S.statsTab==='operators'){
     if(!S.opDetail){ renderOperatorsList(el,rounds,games); return; }
-    else { renderOperatorDetail(el,rounds,games,S.opDetail); return; }
+    else { showOpBg(S.opDetail); renderOperatorDetail(el,rounds,games,S.opDetail); return; }
   }
   if(S.statsTab==='maps'){
     if(!S.mapDetail){ renderMapsList(el,games); return; }
@@ -2438,14 +2467,11 @@ function renderOperatorDetail(el, rounds, games, opName) {
 
   var wrCol2 = v.winRate >= 55 ? 'var(--win)' : v.winRate <= 40 ? 'var(--loss)' : 'var(--text)';
 
-  var opPortraitUrl = 'images/operators/portrait/' + encodeURIComponent(opName) + '.jpg';
   var opLogoUrl = 'images/operators/logo/' + encodeURIComponent(opName) + '.png';
   var html = '<button class="detail-back" onclick="S.opDetail=null;renderStats();animateStatsContentIn()">&lt; Retour aux operateurs</button>'+
-    '<div class="op-hero" style="background-image:url(&quot;'+opPortraitUrl+'&quot;)">'+
-    '<div class="op-hero-inner">'+
-    '<div class="detail-name" style="color:'+accentCol+'"><img class="op-logo" src="'+opLogoUrl+'" onerror="this.remove()">'+opName+'</div>'+
-    '<span class="badge '+roleClass+'" style="margin-top:4px">'+roleLabel+'</span>'+
-    '</div>'+
+    '<div class="detail-header">'+
+    '<div><div class="detail-name" style="color:'+accentCol+'"><img class="op-logo" src="'+opLogoUrl+'" onerror="this.remove()">'+opName+'</div>'+
+    '<span class="badge '+roleClass+'" style="margin-top:4px">'+roleLabel+'</span></div>'+
     '</div>'+
     '<div class="pill-row">'+
     '<span class="pill">Manches : <strong>'+v.total+'</strong></span>'+
