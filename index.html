@@ -82,16 +82,12 @@ body.home-active::before { opacity:0.05; animation:hex-spin 90s linear infinite;
 
 /* Full operator portrait shown whole (contain, not cropped) behind the whole
    screen rather than in a short cropped banner - so stats don't get pushed
-   down the page. background-blend-mode:multiply darkens the light/white
-   backgrounds some source portraits have, so they don't clash with the dark
-   theme, without needing to touch the image files themselves. */
+   down the page. */
 #op-bg{
   position:fixed; inset:0; z-index:0;
-  background-color:var(--bg);
   background-repeat:no-repeat;
   background-position:center 8%;
   background-size:contain;
-  background-blend-mode:multiply;
   opacity:0;
   pointer-events:none;
   transition:opacity .4s ease, background-image .1s;
@@ -735,7 +731,7 @@ var DB = {
 
 // Bump this on every change pushed to the app, so the displayed version tells
 // you whether a given device has picked up the latest reload.
-var APP_VERSION = '3.6.6';
+var APP_VERSION = '3.6.7';
 
 // ===================== STATE =====================
 var S = {
