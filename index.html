@@ -89,7 +89,7 @@ body.home-active .rank-banner { animation:rank-breathe 3.2s ease-in-out infinite
 .screen{display:none}.screen.active{display:block}
 
 .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;padding-bottom:16px;border-bottom:1px solid var(--border)}
-.logo{font-size:18px;font-weight:700;letter-spacing:.15em;color:var(--accent);text-transform:uppercase}
+.logo{font-size:18px;font-weight:700;letter-spacing:.15em;color:var(--btn-col);text-transform:uppercase;transition:color .3s ease}
 .logo-sub{font-size:11px;color:var(--text3);letter-spacing:.1em;margin-top:2px}
 .topbar-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 
@@ -256,6 +256,9 @@ select option{background:var(--bg3)}
 .sm-lbl{font-size:10px;color:var(--text3);letter-spacing:.06em;text-transform:uppercase;text-align:center}
 
 .empty{text-align:center;padding:32px;color:var(--text3);font-size:13px}
+
+.hist-track{position:relative;height:20px;margin:-2px 0 6px;pointer-events:none}
+.hist-runner{position:absolute;top:0;left:0;font-size:16px;line-height:1;transform-origin:50% 70%}
 
 
   @keyframes growUp {
@@ -474,6 +477,7 @@ select option{background:var(--bg3)}
   <div class="metrics" id="home-metrics"></div>
   <div class="card">
     <div class="card-title">Historique</div>
+    <div class="hist-track" id="hist-track"><div class="hist-runner" id="hist-runner">&#127939;</div></div>
     <div id="home-hist"></div>
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
@@ -703,7 +707,7 @@ var DB = {
 
 // Bump this on every change pushed to the app, so the displayed version tells
 // you whether a given device has picked up the latest reload.
-var APP_VERSION = '3.6.1';
+var APP_VERSION = '3.6.2';
 
 // ===================== STATE =====================
 var S = {
@@ -836,6 +840,53 @@ function animateHomeIn() {
     el.offsetHeight;
     el.style.animation = full;
   });
+  startHistRunner();
+}
+
+// Little runner above the Historique list: sprints left -> right, kneels,
+// fires, and collapses, then resets - loops forever while home is showing.
+// S.runnerToken invalidates any older chain so re-rendering home never stacks
+// up duplicate loops, and the chain self-stops once home is no longer active.
+function startHistRunner() {
+  var runner = document.getElementById('hist-runner');
+  if (!runner) return;
+  S.runnerToken = (S.runnerToken || 0) + 1;
+  var myToken = S.runnerToken;
+
+  function next(delay, fn) {
+    setTimeout(function() {
+      if (S.runnerToken !== myToken || !document.body.classList.contains('home-active')) return;
+      fn();
+    }, delay);
+  }
+
+  function runPhase() {
+    runner.style.transition = 'none';
+    runner.style.transform = 'rotate(0deg)';
+    runner.style.opacity = '1';
+    runner.textContent = '\u{1F3C3}';
+    runner.style.left = '0%';
+    runner.offsetWidth; // force reflow so the transition below actually animates
+    runner.style.transition = 'left 3s linear';
+    runner.style.left = 'calc(100% - 18px)';
+    next(3000, kneelPhase);
+  }
+  function kneelPhase() {
+    runner.textContent = '\u{1F9CE}';
+    next(350, shootPhase);
+  }
+  function shootPhase() {
+    runner.textContent = '\u{1F52B}\u{1F4A5}';
+    next(300, diePhase);
+  }
+  function diePhase() {
+    runner.style.transition = 'transform .4s ease, opacity .6s ease .2s';
+    runner.style.transform = 'rotate(85deg)';
+    runner.style.opacity = '0';
+    runner.textContent = '\u{1F480}';
+    next(900, runPhase);
+  }
+  runPhase();
 }
 
 function renderHist() {
