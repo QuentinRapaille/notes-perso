@@ -681,7 +681,7 @@ var DB = {
 
 // Bump this on every change pushed to the app, so the displayed version tells
 // you whether a given device has picked up the latest reload.
-var APP_VERSION = '3.5.7';
+var APP_VERSION = '3.5.8';
 
 // ===================== STATE =====================
 var S = {
@@ -945,10 +945,8 @@ function lastRoleRound(rounds, role) {
 }
 
 // ===================== OPERATOR RECOMMENDATION =====================
-var RECO_MIN_SAMPLE = 8;      // rounds needed at a level before it's trusted at all
-var RECO_GAMES_SATURATION = 30; // rounds beyond this add ~no extra "sample size" credit
-var RECO_KILL_CEILING = 2.0;    // avg kills/round treated as "as good as it gets"
-var RECO_LEVEL_WEIGHT = { site: 3, map: 2, global: 1 }; // representativeness: site > map > global
+var RECO_MIN_SAMPLE = 5;      // rounds needed at a level before it's trusted at all
+var RECO_LEVEL_WEIGHT = { site: 5, map: 3, global: 1 }; // representativeness: site > map > global
 var RECO_WR_WEIGHT = 0.65, RECO_GAMES_WEIGHT = 0.25, RECO_KILLS_WEIGHT = 0.10; // WR > games played > kills
 
 function bucketOpStats(rounds, opsList) {
@@ -962,14 +960,36 @@ function bucketOpStats(rounds, opsList) {
   });
   return m;
 }
+// Signed log2 of how far a value sits from the population's own average (the
+// other operators that qualify at this same level): 0 exactly at average,
+// +1 at double the average, -1 at half the average, and so on - it keeps
+// growing (slower and slower) instead of hard-capping at a fixed count, and
+// it stays meaningful no matter how much data accumulates over time, since
+// "average" moves with the data instead of being a fixed constant.
+function logRelative(value, mean) {
+  var eps = 0.5; // smooths near-zero values (e.g. an op with 0 kills/round) so log2 doesn't blow up
+  return Math.log2((value + eps) / (mean + eps));
+}
 // One level's (site/map/global) contribution: win rate matters most, then how
-// much it's backed by (games played), then kill pressure - in that order of
+// exceptional the sample size is versus peers at that level, then how
+// exceptional the kill rate is versus those same peers - in that order of
 // weight. Only ever called on a level that already cleared RECO_MIN_SAMPLE.
-function levelScore(data) {
+function levelScore(data, meanGames, meanKills) {
   var wr = data.wins / data.total;
-  var normGames = Math.min(1, Math.log(1 + data.total) / Math.log(1 + RECO_GAMES_SATURATION));
-  var normKills = Math.min(1, (data.kills / data.total) / RECO_KILL_CEILING);
+  var avgKills = data.kills / data.total;
+  var normGames = logRelative(data.total, meanGames);
+  var normKills = logRelative(avgKills, meanKills);
   return RECO_WR_WEIGHT * wr + RECO_GAMES_WEIGHT * normGames + RECO_KILLS_WEIGHT * normKills;
+}
+// Average games played / average kills-per-round among the operators that
+// actually qualify (>= RECO_MIN_SAMPLE) at a given level - the "typical"
+// baseline that logRelative() measures each operator against.
+function levelPeerMeans(statsObj, opsList) {
+  var qualifying = opsList.map(function(o) { return statsObj[o]; }).filter(function(d) { return d.total >= RECO_MIN_SAMPLE; });
+  if (!qualifying.length) return { games: 0, kills: 0 };
+  var sumGames = qualifying.reduce(function(s, d) { return s + d.total; }, 0);
+  var sumKills = qualifying.reduce(function(s, d) { return s + d.kills / d.total; }, 0);
+  return { games: sumGames / qualifying.length, kills: sumKills / qualifying.length };
 }
 // Combines site/map/global scores per operator (site > map > global), skipping
 // any level that doesn't have enough rounds behind it rather than penalizing a
@@ -1001,6 +1021,10 @@ function recommendOperators(role, map, site) {
   var mapStats = bucketOpStats(mapRounds, opsList);
   var globalStats = bucketOpStats(globalRounds, opsList);
 
+  var siteMeans = levelPeerMeans(siteStats, opsList);
+  var mapMeans = levelPeerMeans(mapStats, opsList);
+  var globalMeans = levelPeerMeans(globalStats, opsList);
+
   // Light anti-repetition nudge: penalize an operator that has been used for
   // every one of the last 3 rounds played in this role (most recent games first).
   var recentOps = [];
@@ -1015,9 +1039,9 @@ function recommendOperators(role, map, site) {
   var results = opsList.map(function(op) {
     var s = siteStats[op], m = mapStats[op], gl = globalStats[op];
     var levels = [];
-    if (s.total >= RECO_MIN_SAMPLE) levels.push({ level: 'site', data: s });
-    if (m.total >= RECO_MIN_SAMPLE) levels.push({ level: 'map', data: m });
-    if (gl.total >= RECO_MIN_SAMPLE) levels.push({ level: 'global', data: gl });
+    if (s.total >= RECO_MIN_SAMPLE) levels.push({ level: 'site', data: s, means: siteMeans });
+    if (m.total >= RECO_MIN_SAMPLE) levels.push({ level: 'map', data: m, means: mapMeans });
+    if (gl.total >= RECO_MIN_SAMPLE) levels.push({ level: 'global', data: gl, means: globalMeans });
 
     var score = null;
     if (levels.length) {
@@ -1025,7 +1049,7 @@ function recommendOperators(role, map, site) {
       levels.forEach(function(l) {
         var w = RECO_LEVEL_WEIGHT[l.level];
         wSum += w;
-        vSum += w * levelScore(l.data);
+        vSum += w * levelScore(l.data, l.means.games, l.means.kills);
       });
       score = vSum / wSum;
       if (op === overused) score -= 0.04;
@@ -1072,7 +1096,7 @@ function renderOperatorRecommendation() {
   }).join(' &middot; ');
 
   var alt = res.ranked.slice(1, 3).filter(function(r) { return r.score !== null; })
-    .map(function(r) { return r.op + ' (' + Math.round(r.score * 100) + ')'; }).join(', ');
+    .map(function(r) { return r.op + ' (' + r.score.toFixed(2) + ')'; }).join(', ');
 
   el.innerHTML = '<div class="reco-box" style="border-color:' + accentCol + '">' +
     '<div class="reco-label">Recommandation' + (res.usedRank ? ' &middot; rang ' + res.rankTier : '') + '</div>' +
