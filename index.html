@@ -681,7 +681,7 @@ var DB = {
 
 // Bump this on every change pushed to the app, so the displayed version tells
 // you whether a given device has picked up the latest reload.
-var APP_VERSION = '3.5.6';
+var APP_VERSION = '3.5.7';
 
 // ===================== STATE =====================
 var S = {
@@ -1110,16 +1110,19 @@ function renderRound() {
   var siteEl = document.getElementById('r-site');
   var sites = getBombSites(g.map);
   if (sites) {
-    var excluded = null;
-    var lastSame = lastRoleRound(g.rounds, role);
+    var available;
     if (role === 'Defenseur') {
-      // Can't defend a site just won on defense the previous defensive round
-      if (lastSame && lastSame.result === 'win' && lastSame.site) excluded = lastSame.site;
+      // A site won on defense is banned from defense for the rest of the game.
+      var wonDefSites = g.rounds.filter(function(r){ return r.role === 'Defenseur' && r.result === 'win' && r.site; })
+        .map(function(r){ return r.site; });
+      available = sites.filter(function(s){ return wonDefSites.indexOf(s.n) === -1; });
     } else {
       // Can't attack a site just lost on attack the previous attacking round
+      var excluded = null;
+      var lastSame = lastRoleRound(g.rounds, role);
       if (lastSame && lastSame.result === 'loss' && lastSame.site) excluded = lastSame.site;
+      available = sites.filter(function(s){ return s.n !== excluded; });
     }
-    var available = sites.filter(function(s){ return s.n !== excluded; });
     var siteColor = role === 'Attaquant' ? 'var(--atk)' : 'var(--def)';
     siteEl.innerHTML = '<div class="input-group"><label>Site de bombe (optionnel)</label>'+
       '<div class="site-picker" id="r-site-picker">'+
