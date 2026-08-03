@@ -72,13 +72,29 @@ body::before{
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpolygon points='50,2 98,26 98,74 50,98 2,74 2,26' fill='none' stroke='%23ffffff' stroke-width='3'/%3E%3Cpolygon points='50,14 86,32 86,68 50,86 14,68 14,32' fill='none' stroke='%23ffffff' stroke-width='1.5'/%3E%3Cline x1='50' y1='2' x2='50' y2='14' stroke='%23ffffff' stroke-width='2'/%3E%3Cline x1='98' y1='26' x2='86' y2='32' stroke='%23ffffff' stroke-width='2'/%3E%3Cline x1='98' y1='74' x2='86' y2='68' stroke='%23ffffff' stroke-width='2'/%3E%3Cline x1='50' y1='98' x2='50' y2='86' stroke='%23ffffff' stroke-width='2'/%3E%3Cline x1='2' y1='74' x2='14' y2='68' stroke='%23ffffff' stroke-width='2'/%3E%3Cline x1='2' y1='26' x2='14' y2='32' stroke='%23ffffff' stroke-width='2'/%3E%3C/svg%3E");
   background-repeat:no-repeat;
   background-size:contain;
-  opacity:0.03;
+  opacity:0.05;
   pointer-events:none;
   z-index:0;
   transition:opacity .4s ease;
+  animation:hex-spin 90s linear infinite;
 }
 @keyframes hex-spin { from { transform:translate(-50%,-50%) rotate(0deg); } to { transform:translate(-50%,-50%) rotate(360deg); } }
-body.home-active::before { opacity:0.05; animation:hex-spin 90s linear infinite; }
+/* Hidden on the home screen (which has its own background image) and on the
+   operators tab of stats (which has its own portrait background). */
+body.hex-hidden::before { opacity:0; animation:none; }
+
+/* Home screen background image. */
+#home-bg{
+  position:fixed; inset:0; z-index:0;
+  background-image:url('images/backgrounds/fond.jpg');
+  background-repeat:no-repeat;
+  background-position:center;
+  background-size:cover;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .4s ease;
+}
+body.home-active #home-bg{ opacity:0.35; }
 
 /* Full operator portrait shown whole (contain, not cropped) behind the whole
    screen rather than in a short cropped banner - so stats don't get pushed
@@ -100,19 +116,6 @@ body.home-active::before { opacity:0.05; animation:hex-spin 90s linear infinite;
 }
 #op-bg.visible{opacity:0.85}
 
-/* Historique card: fond_home.jpg as its own background, with a dark overlay
-   (matching the card's normal bg color) so the list stays legible. */
-#hist-card{
-  position:relative; overflow:hidden;
-  background-image:url('images/backgrounds/fond_home.jpg');
-  background-size:cover;
-  background-position:center top;
-}
-#hist-card::before{
-  content:''; position:absolute; inset:0;
-  background:linear-gradient(180deg, rgba(17,17,24,0.72) 0%, rgba(17,17,24,0.92) 100%);
-}
-#hist-card > *{ position:relative; z-index:1; }
 /* Fixed-height, internally scrollable - the card never grows no matter how
    many games are in the list. */
 #home-hist{ max-height:340px; overflow-y:auto; -webkit-overflow-scrolling:touch; }
@@ -503,6 +506,7 @@ select option{background:var(--bg3)}
 </style>
 </head>
 <body>
+<div id="home-bg"></div>
 <div id="op-bg"></div>
 <div class="app">
 
@@ -754,7 +758,7 @@ var DB = {
 
 // Bump this on every change pushed to the app, so the displayed version tells
 // you whether a given device has picked up the latest reload.
-var APP_VERSION = '3.7.1';
+var APP_VERSION = '3.7.2';
 
 // ===================== STATE =====================
 var S = {
@@ -2034,13 +2038,15 @@ function setStatsTab(el, tab) {
   animateStatsContentIn();
 }
 // Shows the current operator's own portrait (#op-bg) while viewing their
-// detail screen; hidden everywhere else. Called on every screen change and
-// every stats tab/detail change, so it's always in sync with what's on screen.
+// detail screen, and keeps the hexagon watermark hidden on the home screen
+// and the operators tab (both have their own background). Called on every
+// screen change and every stats tab/detail change, so it's always in sync.
 function updateBackgrounds() {
   var opBg = document.getElementById('op-bg');
   if (!opBg) return;
   var onStats = document.getElementById('s-stats').classList.contains('active');
-  var showingOperator = onStats && S.statsTab === 'operators' && !!S.opDetail;
+  var onOperatorsTab = onStats && S.statsTab === 'operators';
+  var showingOperator = onOperatorsTab && !!S.opDetail;
 
   if (showingOperator) {
     opBg.style.backgroundImage = 'url("images/operators/portrait/' + encodeURIComponent(S.opDetail) + '.jpg")';
@@ -2048,6 +2054,9 @@ function updateBackgrounds() {
   } else {
     opBg.classList.remove('visible');
   }
+
+  var isHome = document.body.classList.contains('home-active');
+  document.body.classList.toggle('hex-hidden', isHome || onOperatorsTab);
 }
 function renderStats() {
   var games=DB.games, el=document.getElementById('stats-content');
