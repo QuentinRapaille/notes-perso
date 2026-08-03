@@ -45,6 +45,19 @@
   from { opacity:0; transform:translateY(10px); }
   to   { opacity:1; transform:translateY(0); }
 }
+@keyframes cal-week-in {
+  from { opacity:0; transform:translateX(-4px); }
+  to   { opacity:1; transform:translateX(0); }
+}
+@keyframes score-pop {
+  0%   { transform:scale(1.35); }
+  100% { transform:scale(1); }
+}
+@keyframes dot-pop {
+  0%   { transform:scale(0.4); opacity:.3; }
+  60%  { transform:scale(1.15); opacity:1; }
+  100% { transform:scale(1); opacity:1; }
+}
 .sbar { transform-origin: bottom; }
 .sbar.animate { animation: bar-rise 0.6s cubic-bezier(.22,.61,.36,1) both; }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -131,7 +144,7 @@ select option{background:var(--bg3)}
 .cal-daylabels{display:flex;flex-direction:column;gap:3px;width:26px;margin-right:4px}
 .cal-daylabel{height:10px;font-size:9px;line-height:10px;color:var(--text3)}
 .cal-grid{display:flex;gap:3px}
-.cal-week{display:flex;flex-direction:column;gap:3px}
+.cal-week{display:flex;flex-direction:column;gap:3px;animation:cal-week-in .35s ease both}
 .cal-day{width:10px;height:10px;border-radius:2px;background:var(--cal-0)}
 .cal-future{background:transparent!important}
 .cal-legend{display:flex;align-items:center;gap:4px;margin-top:10px;font-size:11px;color:var(--text3);justify-content:flex-end}
@@ -180,11 +193,12 @@ select option{background:var(--bg3)}
 .ssub{font-size:10px;color:var(--text3);font-weight:400}
 
 .score-disp{display:flex;align-items:center;justify-content:center;gap:20px;margin:12px 0}
-.score-n{font-size:36px;font-weight:700}
+.score-n{font-size:36px;font-weight:700;display:inline-block;animation:score-pop .3s cubic-bezier(.22,1,.36,1) both}
 .score-sep{font-size:22px;color:var(--text3)}
 
 .rdots{display:flex;gap:6px;justify-content:center;margin-top:10px;flex-wrap:wrap}
 .rdot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:1px solid var(--border)}
+.rdot.dot-new{animation:dot-pop .35s cubic-bezier(.22,1,.36,1) both}
 .dot-w{background:rgba(76,175,112,0.2);border-color:var(--win);color:var(--win)}
 .dot-l{background:rgba(224,85,85,0.12);border-color:var(--loss);color:var(--loss)}
 .dot-p{background:var(--bg3);color:var(--text3)}
@@ -479,7 +493,7 @@ select option{background:var(--bg3)}
     <button class="nav-back" onclick="goHome()">&lt; Retour</button>
     <span class="nav-title">Nouvelle partie</span>
   </div>
-  <div class="card">
+  <div class="card" id="ng-card">
     <div class="card-title">Configuration</div>
     <div class="input-group"><label>Map</label><select id="ng-map"></select></div>
     <div class="input-group"><label>Format</label>
@@ -681,7 +695,7 @@ var DB = {
 
 // Bump this on every change pushed to the app, so the displayed version tells
 // you whether a given device has picked up the latest reload.
-var APP_VERSION = '3.5.8';
+var APP_VERSION = '3.5.9';
 
 // ===================== STATE =====================
 var S = {
@@ -717,6 +731,8 @@ function goNewGame() {
   document.getElementById('ng-fmt').value = getDefaultFormat();
   setFirstRole('Attaquant');
   goScreen('s-newgame');
+  var card = document.getElementById('ng-card');
+  if (card) { card.style.animation = 'none'; card.offsetHeight; card.style.animation = 'fadeSlideUp .35s cubic-bezier(.22,1,.36,1) both'; }
 }
 
 // Bo5 all week, except Friday 16h -> Monday 16h where it's Bo7
@@ -792,6 +808,21 @@ function renderHome() {
     banner.innerHTML='';
   }
   renderHist();
+  animateHomeIn();
+}
+// Staggered entrance for the rank banner, the 3 metric tiles, and the history
+// rows - replays every time the home screen is (re)rendered (goHome(), etc.)
+function animateHomeIn() {
+  var items = [];
+  var banner = document.querySelector('#home-rank-banner .rank-banner');
+  if (banner) items.push(banner);
+  document.querySelectorAll('#home-metrics .metric').forEach(function(m){ items.push(m); });
+  document.querySelectorAll('#home-hist .hist-item, #home-hist .sess-label').forEach(function(h){ items.push(h); });
+  items.forEach(function(el, i) {
+    el.style.animation = 'none';
+    el.offsetHeight;
+    el.style.animation = 'fadeSlideUp .4s cubic-bezier(.22,1,.36,1) ' + (i * 0.05) + 's both';
+  });
 }
 
 function renderHist() {
@@ -1120,7 +1151,7 @@ function renderRound() {
   var dots='';
   for (var d=0;d<max;d++){
     var r=g.rounds[d];
-    if(r) dots+='<div class="rdot '+(r.result==='win'?'dot-w':'dot-l')+'">'+r.kills+'</div>';
+    if(r) dots+='<div class="rdot '+(r.result==='win'?'dot-w':'dot-l')+(d===g.rounds.length-1?' dot-new':'')+'">'+r.kills+'</div>';
     else dots+='<div class="rdot dot-p">'+(d+1)+'</div>';
   }
   document.getElementById('r-progress').innerHTML=
@@ -1847,6 +1878,30 @@ function openStats() {
   goScreen('s-stats');
   setStatsTabByName('global');
 }
+// Shared entrance animation for the stats content: fades/slides the whole
+// block in, then (re)triggers the bar-rise / count-up animations on the bars
+// and big numbers inside it. Called after every tab switch, from wherever it
+// happens (direct tab click, opening stats fresh, or returning from a detail
+// screen), so the transition is consistent everywhere.
+function animateStatsContentIn() {
+  var content = document.getElementById('stats-content');
+  if (content) {
+    content.style.animation = 'none';
+    content.offsetHeight;
+    content.style.animation = 'fadeSlideUp .3s cubic-bezier(.22,1,.36,1) both';
+  }
+  setTimeout(function(){
+    document.querySelectorAll('.sbar').forEach(function(b,i){
+      b.style.transformOrigin='bottom';
+      b.style.animation='none';
+      b.offsetHeight;
+      b.style.animation='bar-rise '+(0.4+i*0.04)+'s cubic-bezier(.22,.61,.36,1) both';
+    });
+    document.querySelectorAll('.metric-val').forEach(function(m,i){
+      m.style.animation='count-up 0.4s ease '+(i*0.06)+'s both';
+    });
+  }, 30);
+}
 function setStatsTabByName(tab) {
   var btns = document.querySelectorAll('#stats-tabs .tab');
   var target = null;
@@ -1857,6 +1912,7 @@ function setStatsTabByName(tab) {
   if (target) target.classList.add('active');
   S.statsTab = tab; S.opDetail = null; S.mapDetail = null;
   renderStats();
+  animateStatsContentIn();
 }
 function sessDetailBack() {
   if (S.sessDetailFrom === 'stats') {
@@ -1870,17 +1926,7 @@ function sessDetailBack() {
 function setStatsTab(el, tab) {
   document.querySelectorAll('#stats-tabs .tab').forEach(function(t){ t.classList.remove('active'); });
   el.classList.add('active'); S.statsTab=tab; S.opDetail=null; S.mapDetail=null; renderStats();
-  setTimeout(function(){
-    document.querySelectorAll('.sbar').forEach(function(b,i){
-      b.style.transformOrigin='bottom';
-      b.style.animation='none';
-      b.offsetHeight;
-      b.style.animation='bar-rise '+(0.4+i*0.04)+'s cubic-bezier(.22,.61,.36,1) both';
-    });
-    document.querySelectorAll('.metric-val').forEach(function(m,i){
-      m.style.animation='count-up 0.4s ease '+(i*0.06)+'s both';
-    });
-  }, 30);
+  animateStatsContentIn();
 }
 function renderStats() {
   var games=DB.games, el=document.getElementById('stats-content');
@@ -2249,6 +2295,7 @@ function openOpDetail(opName) {
   S.opDetail = opName;
   S.opSubTab = 'maps';
   renderStats();
+  animateStatsContentIn();
 }
 
 function renderOperatorDetail(el, rounds, games, opName) {
@@ -2313,7 +2360,7 @@ function renderOperatorDetail(el, rounds, games, opName) {
 
   var wrCol2 = v.winRate >= 55 ? 'var(--win)' : v.winRate <= 40 ? 'var(--loss)' : 'var(--text)';
 
-  var html = '<button class="detail-back" onclick="S.opDetail=null;renderStats()">&lt; Retour aux operateurs</button>'+
+  var html = '<button class="detail-back" onclick="S.opDetail=null;renderStats();animateStatsContentIn()">&lt; Retour aux operateurs</button>'+
     '<div class="detail-header">'+
     '<div><div class="detail-name" style="color:'+accentCol+'">'+opName+'</div>'+
     '<span class="badge '+roleClass+'" style="margin-top:4px">'+roleLabel+'</span></div>'+
@@ -2442,6 +2489,7 @@ function openMapDetail(mapName) {
   S.mapDetail = mapName;
   S.mapSubTab = 'operators';
   renderStats();
+  animateStatsContentIn();
 }
 
 function renderMapDetail(el, games, mapName) {
@@ -2501,7 +2549,7 @@ function renderMapDetail(el, games, mapName) {
     '<button class="stab'+(S.mapSubTab==='history'?' active':'')+'" onclick="S.mapSubTab=\'history\';renderStats()">Historique</button>'+
     '</div>';
 
-  var html = '<button class="detail-back" onclick="S.mapDetail=null;renderStats()">&lt; Retour aux maps</button>'+
+  var html = '<button class="detail-back" onclick="S.mapDetail=null;renderStats();animateStatsContentIn()">&lt; Retour aux maps</button>'+
     '<div class="detail-header">'+
     '<div><div class="detail-name">'+mapName+'</div></div>'+
     '</div>'+
@@ -2758,8 +2806,8 @@ function renderCalendarHeatmap(games, year) {
   var dayLabels = ['Lun', '', 'Mer', '', 'Ven', '', '']; // rows: Mon,Tue,Wed,Thu,Fri,Sat,Sun
   var dayLabelsHtml = dayLabels.map(function(l) { return '<div class="cal-daylabel">' + l + '</div>'; }).join('');
 
-  var gridHtml = weeks.map(function(w) {
-    return '<div class="cal-week">' + w.map(function(x) {
+  var gridHtml = weeks.map(function(w, wi) {
+    return '<div class="cal-week" style="animation-delay:' + (wi * 0.012) + 's">' + w.map(function(x) {
       if (x.outOfRange) return '<div class="cal-day cal-future"></div>';
       var tip = x.count + (x.count > 1 ? ' parties' : ' partie') + ' le ' + x.date.toLocaleDateString('fr-FR') + (x.count && x.rankTier ? ' (' + x.rankTier + ')' : '');
       return '<div class="cal-day" style="background:' + colorForDay(x.count, x.rankTier) + '" title="' + tip + '"></div>';
