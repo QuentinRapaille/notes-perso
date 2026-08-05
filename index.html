@@ -767,7 +767,7 @@ var DB = {
 
 // Bump this on every change pushed to the app, so the displayed version tells
 // you whether a given device has picked up the latest reload.
-var APP_VERSION = '3.7.4';
+var APP_VERSION = '3.7.5';
 
 // ===================== STATE =====================
 var S = {
@@ -903,8 +903,10 @@ function animateHomeIn() {
   startHistRunner();
 }
 
-// Little runner above the Historique list: sprints left -> right, kneels,
-// fires, and collapses, then resets - loops forever while home is showing.
+// Little runner above the Historique list: sprints half the track, glances
+// around, crouches and advances slower, glances around again, goes prone and
+// crawls the last stretch even slower, then dies - then resets and repeats,
+// alternating travel direction (left->right, then right->left) each loop.
 // S.runnerToken invalidates any older chain so re-rendering home never stacks
 // up duplicate loops, and the chain self-stops once home is no longer active.
 function startHistRunner() {
@@ -912,6 +914,7 @@ function startHistRunner() {
   if (!runner) return;
   S.runnerToken = (S.runnerToken || 0) + 1;
   var myToken = S.runnerToken;
+  if (typeof S.runnerDir !== 'number') S.runnerDir = 1; // 1 = left->right, -1 = right->left
 
   function next(delay, fn) {
     setTimeout(function() {
@@ -920,33 +923,62 @@ function startHistRunner() {
     }, delay);
   }
 
-  function runPhase() {
+  // Converts "% of the track travelled so far" into the actual CSS left
+  // value, in the current travel direction, keeping the emoji's own width
+  // inset at the far edge so it never overflows the track.
+  function trackLeft(dir, traveledPct) {
+    var pct = dir === 1 ? traveledPct : (100 - traveledPct);
+    return 'calc(' + pct + '% - ' + (18 * pct / 100).toFixed(2) + 'px)';
+  }
+
+  function cycle() {
+    var dir = S.runnerDir;
+    var faceScale = dir === 1 ? -1 : 1; // emoji glyphs face left by default; mirror to face the direction of travel
+    runPhase(dir, faceScale);
+  }
+
+  function runPhase(dir, faceScale) {
     runner.style.transition = 'none';
-    runner.style.transform = 'scaleX(-1)'; // the emoji glyph faces left by default; mirror it to face the direction of travel
+    runner.style.transform = 'scaleX(' + faceScale + ')';
     runner.style.opacity = '1';
     runner.textContent = '\u{1F3C3}';
-    runner.style.left = '0%';
+    runner.style.left = trackLeft(dir, 0);
     runner.offsetWidth; // force reflow so the transition below actually animates
-    runner.style.transition = 'left 3s linear';
-    runner.style.left = 'calc(100% - 18px)';
-    next(3000, kneelPhase);
+    runner.style.transition = 'left 1.5s linear';
+    runner.style.left = trackLeft(dir, 50);
+    next(1500, function() { lookAround(dir, faceScale, function() { crouchPhase(dir, faceScale); }); });
   }
-  function kneelPhase() {
+  function lookAround(dir, faceScale, cb) {
+    runner.style.transition = 'transform .25s ease';
+    runner.style.transform = 'scaleX(' + (-faceScale) + ')'; // glance behind
+    next(300, function() {
+      runner.style.transform = 'scaleX(' + faceScale + ')'; // glance back forward
+      next(300, cb);
+    });
+  }
+  function crouchPhase(dir, faceScale) {
     runner.textContent = '\u{1F9CE}';
-    next(350, shootPhase);
+    runner.style.transition = 'left 1.4s linear';
+    runner.style.left = trackLeft(dir, 75);
+    next(1400, function() { lookAround(dir, faceScale, function() { pronePhase(dir, faceScale); }); });
   }
-  function shootPhase() {
-    runner.textContent = '\u{1F52B}\u{1F4A5}';
-    next(300, diePhase);
+  function pronePhase(dir, faceScale) {
+    runner.textContent = '\u{1F6CC}';
+    runner.style.transition = 'left 2s linear';
+    runner.style.left = trackLeft(dir, 100);
+    next(2000, function() { diePhase(dir, faceScale); });
   }
-  function diePhase() {
+  function diePhase(dir, faceScale) {
     runner.style.transition = 'transform .4s ease, opacity .6s ease .2s';
-    runner.style.transform = 'scaleX(-1) rotate(85deg)';
+    runner.style.transform = 'scaleX(' + faceScale + ') rotate(85deg)';
     runner.style.opacity = '0';
     runner.textContent = '\u{1F480}';
-    next(900, runPhase);
+    next(900, function() {
+      S.runnerDir = dir * -1; // alternate direction on the next loop
+      cycle();
+    });
   }
-  runPhase();
+  cycle();
 }
 
 function renderHist() {
