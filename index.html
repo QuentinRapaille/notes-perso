@@ -94,7 +94,7 @@ body.hex-hidden::before { opacity:0; animation:none; }
   pointer-events:none;
   transition:opacity .4s ease;
 }
-body.home-active #home-bg{ opacity:0.35; }
+body.home-active #home-bg{ opacity:0.2; }
 
 /* Full operator portrait shown whole (contain, not cropped) behind the whole
    screen rather than in a short cropped banner - so stats don't get pushed
@@ -148,8 +148,8 @@ body.home-active .rank-banner { animation:rank-breathe 3.2s ease-in-out infinite
 
 /* Home screen sits over #home-bg (fond.jpg) - plain buttons need an opaque
    backing or they're nearly invisible against the photo. */
-body.home-active #s-home .btn{background:rgba(10,10,15,0.72);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
-body.home-active #s-home .btn:hover{background:rgba(10,10,15,0.85)}
+body.home-active #s-home .btn:not(.btn-primary){background:rgba(10,10,15,0.72);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+body.home-active #s-home .btn:not(.btn-primary):hover{background:rgba(10,10,15,0.85)}
 body.home-active #s-home .btn-danger{background:rgba(224,85,85,0.16)}
 body.home-active #s-home .btn-danger:hover{background:rgba(224,85,85,0.28)}
 
@@ -767,7 +767,7 @@ var DB = {
 
 // Bump this on every change pushed to the app, so the displayed version tells
 // you whether a given device has picked up the latest reload.
-var APP_VERSION = '3.7.3';
+var APP_VERSION = '3.7.4';
 
 // ===================== STATE =====================
 var S = {
