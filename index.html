@@ -767,7 +767,7 @@ var DB = {
 
 // Bump this on every change pushed to the app, so the displayed version tells
 // you whether a given device has picked up the latest reload.
-var APP_VERSION = '3.7.5';
+var APP_VERSION = '3.7.6';
 
 // ===================== STATE =====================
 var S = {
@@ -1859,6 +1859,7 @@ function deleteGame(idx) {
   var games = DB.games;
   games.splice(idx, 1);
   DB.games = games;
+  autoPushToGist();
   goHome();
 }
 
@@ -2020,6 +2021,7 @@ function saveEditGame() {
   g.result = wins > losses ? 'win' : losses > wins ? 'loss' : 'draw';
 
   DB.games = games;
+  autoPushToGist();
   showGameDetail(idx);
 }
 
