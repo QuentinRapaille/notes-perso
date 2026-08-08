@@ -796,7 +796,7 @@ var DB = {
 
 // Bump this on every change pushed to the app, so the displayed version tells
 // you whether a given device has picked up the latest reload.
-var APP_VERSION = '3.9.0';
+var APP_VERSION = '3.9.1';
 
 // ===================== STATE =====================
 var S = {
@@ -2444,7 +2444,7 @@ function opSortBy(col) {
 function opCarouselNav(role, dir) {
   var rounds = [].concat.apply([], DB.games.map(function(g) { return g.rounds; }));
   var ops = buildOpStats(rounds, DB.games);
-  var list = Object.keys(ops).filter(function(o) { return ops[o].role === role; }).sort(function(a, b) { return a.localeCompare(b); });
+  var list = Object.keys(ops).filter(function(o) { return ops[o].role === role; });
   if (!list.length) return;
   var key = role === 'Attaquant' ? 'opCarAtk' : 'opCarDef';
   var cur = S[key] && list.indexOf(S[key]) !== -1 ? S[key] : list[0];
