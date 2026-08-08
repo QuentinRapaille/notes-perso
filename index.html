@@ -769,8 +769,8 @@ select option{background:var(--bg3)}
 // ===================== END BOOTSTRAP =====================
 // ===================== DATA =====================
 var DEF_MAPS = ["Bank","Border","Clubhouse","Oregon","Summit","Villa"];
-var DEF_ATK  = ["Ash","Buck","Capitao","Deimos","Dokkaebi","Glaz","Hibana","Lion","Recrue Attaque","Sledge","Thatcher","Thermite","Twitch","Ying"];
-var DEF_DEF  = ["Bandit","Castle","Caveira","Frost","Jager","Kapkan","Lesion","Maestro","Mira","Mute","Recrue Defense","Rook","Smoke","Valkyrie"];
+var DEF_ATK  = ["Ash","Buck","Capitao","Deimos","Dokkaebi","Glaz","Hibana","Lion","Recrue Off","Sledge","Thatcher","Thermite","Twitch","Ying"];
+var DEF_DEF  = ["Bandit","Castle","Caveira","Frost","Jager","Kapkan","Lesion","Maestro","Mira","Mute","Recrue Def","Rook","Smoke","Valkyrie"];
 
 function lsGet(k, fallback) {
   try { var v = localStorage.getItem(k); return v !== null ? JSON.parse(v) : fallback; } catch(e) { return fallback; }
@@ -796,7 +796,7 @@ var DB = {
 
 // Bump this on every change pushed to the app, so the displayed version tells
 // you whether a given device has picked up the latest reload.
-var APP_VERSION = '3.9.1';
+var APP_VERSION = '3.9.2';
 
 // ===================== STATE =====================
 var S = {
