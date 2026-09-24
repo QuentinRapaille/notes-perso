@@ -800,7 +800,7 @@ var DB = {
 
 // Bump this on every change pushed to the app, so the displayed version tells
 // you whether a given device has picked up the latest reload.
-var APP_VERSION = '3.9.5';
+var APP_VERSION = '3.9.6';
 
 // ===================== STATE =====================
 var S = {
@@ -1289,7 +1289,10 @@ function renderRound() {
     siteEl.innerHTML = '<div class="input-group"><label>Site de bombe (optionnel)</label>'+
       '<div class="site-picker" id="r-site-picker">'+
       available.map(function(s){
-        var imgUrl = 'images/sites/' + encodeURIComponent(g.map) + '/' + encodeURIComponent(s.n) + '.jpg';
+        // Site names often contain "/" (e.g. "Open space/Kitchen"); keep the image
+        // filename flat (no real subfolder) so it can be created directly in Finder
+        // without hitting the "/"<->":" translation quirk of macOS filenames.
+        var imgUrl = 'images/sites/' + encodeURIComponent(g.map) + '/' + encodeURIComponent(s.n.replace(/\//g, '-')) + '.jpg';
         return '<button type="button" class="site-btn has-img" style="--site-col:'+siteColor+'" data-site="'+s.n.replace(/"/g,'&quot;')+'" onclick="selectSite(\''+s.n.replace(/'/g,"\\'")+'\',this)">'+
           '<img class="site-btn-img" src="'+imgUrl+'" onerror="this.parentElement.classList.remove(&quot;has-img&quot;);this.remove()">'+
           '<span class="site-btn-label">'+s.c+' - '+s.n+'</span>'+
