@@ -198,6 +198,17 @@ select option{background:var(--bg3)}
 .site-btn.has-img .site-btn-label{display:none}
 .site-btn.has-img.sel::before{content:'';position:absolute;inset:0;background:var(--site-col);opacity:.45;z-index:1}
 .site-btn-wr{position:absolute;right:5px;bottom:5px;z-index:3;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700;background:rgba(10,10,15,.72);text-shadow:0 1px 2px rgba(0,0,0,.7)}
+
+.site-detail-card{padding:0;overflow:hidden}
+.site-detail-imgwrap{width:100%;aspect-ratio:3/2;background:var(--bg3)}
+.site-detail-img{width:100%;height:100%;object-fit:cover;display:block}
+.site-detail-title{padding:12px 14px 0;font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.site-detail-card.has-img .site-detail-title{display:none}
+.site-detail-split{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:10px 14px 14px}
+.site-detail-col+.site-detail-col{border-left:1px solid var(--border);padding-left:12px}
+.site-detail-col-title{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px}
+.site-detail-stat{display:flex;justify-content:space-between;font-size:12px;color:var(--text2);padding:3px 0}
+.site-detail-stat strong{color:var(--text);font-weight:700}
 .site-btn-sm{padding:6px 5px;cursor:pointer;background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:var(--r);font-family:inherit;font-size:11px;font-weight:600;text-align:center;transition:all .12s;flex:1 1 46%}
 .site-btn-sm:hover{border-color:var(--def);color:var(--text)}
 .site-btn-sm.sel{background:var(--def);border-color:var(--def);color:#fff}
@@ -801,7 +812,7 @@ var DB = {
 
 // Bump this on every change pushed to the app, so the displayed version tells
 // you whether a given device has picked up the latest reload.
-var APP_VERSION = '3.9.9';
+var APP_VERSION = '3.9.11';
 
 // ===================== STATE =====================
 var S = {
@@ -2753,34 +2764,41 @@ function renderMapDetail(el, games, mapName) {
       if (r.role==='Defenseur') defRoundsAll.push(r); else atkRoundsAll.push(r);
     }); });
 
-    function siteTable(roundsAll, accentCol, roleLbl) {
-      var siteRows = bombSites.map(function(s) {
-        var sr = roundsAll.filter(function(r){ return r.site === s.n; });
-        var total = sr.length;
-        var wins = sr.filter(function(r){ return r.result==='win'; }).length;
-        var wr = total ? Math.round(wins/total*100) : null;
-        var avgK = total ? (sr.reduce(function(sum,r){ return sum+r.kills; },0)/total) : null;
-        return { code: s.c, name: s.n, total: total, wr: wr, avgK: avgK };
-      });
-      var rows = siteRows.map(function(s) {
-        var wrc = s.wr===null ? 'var(--text3)' : s.wr >= 55 ? 'var(--win)' : s.wr <= 40 ? 'var(--loss)' : 'var(--text)';
-        return '<tr>'+
-          '<td style="font-weight:700">'+s.code+' - '+s.name+'</td>'+
-          '<td>'+s.total+'</td>'+
-          '<td style="color:'+wrc+'">'+(s.wr===null?'--':s.wr+'%')+'</td>'+
-          '<td>'+(s.avgK===null?'--':s.avgK.toFixed(1))+'</td>'+
-          '</tr>';
-      }).join('');
-      var noSiteCount = roundsAll.filter(function(r){ return !r.site; }).length;
-      var noSiteNote = noSiteCount ? '<div style="font-size:11px;color:var(--text3);margin-top:8px;text-align:center">'+noSiteCount+' manche(s) sans site renseigne</div>' : '';
-      return '<div class="card" style="margin-bottom:12px"><div class="card-title" style="color:'+accentCol+'">Win rate par site &mdash; '+roleLbl+'</div>'+
-        '<table class="xtable"><thead><tr><th>Site</th><th>Mnch.</th><th>WR%</th><th>Moy.K</th></tr></thead><tbody>'+rows+'</tbody></table>'+
-        noSiteNote+
+    function siteRoleStats(roundsAll, siteName) {
+      var sr = roundsAll.filter(function(r){ return r.site === siteName; });
+      var total = sr.length;
+      var wins = sr.filter(function(r){ return r.result==='win'; }).length;
+      var wr = total ? Math.round(wins/total*100) : null;
+      var avgK = total ? (sr.reduce(function(sum,r){ return sum+r.kills; },0)/total) : null;
+      return { total: total, wr: wr, avgK: avgK };
+    }
+    function siteRoleCol(stats, accentCol, roleLbl) {
+      var wrc = stats.wr===null ? 'var(--text3)' : stats.wr >= 55 ? 'var(--win)' : stats.wr <= 40 ? 'var(--loss)' : 'var(--text)';
+      return '<div class="site-detail-col">'+
+        '<div class="site-detail-col-title" style="color:'+accentCol+'">'+roleLbl+'</div>'+
+        '<div class="site-detail-stat"><span>Manches</span><strong>'+stats.total+'</strong></div>'+
+        '<div class="site-detail-stat"><span>WR</span><strong style="color:'+wrc+'">'+(stats.wr===null?'--':stats.wr+'%')+'</strong></div>'+
+        '<div class="site-detail-stat"><span>Moy.K</span><strong>'+(stats.avgK===null?'--':stats.avgK.toFixed(1))+'</strong></div>'+
         '</div>';
     }
 
-    html += siteTable(atkRoundsAll, 'var(--atk)', 'Attaquants');
-    html += siteTable(defRoundsAll, 'var(--def)', 'Defenseurs');
+    bombSites.forEach(function(s) {
+      var imgUrl = 'images/sites/' + encodeURIComponent(mapName) + '/' + encodeURIComponent(s.n.replace(/\//g, '-')) + '.jpg';
+      html += '<div class="card site-detail-card has-img" style="margin-bottom:12px">'+
+        '<div class="site-detail-imgwrap"><img class="site-detail-img" src="'+imgUrl+'" onerror="var c=this.closest(&quot;.site-detail-card&quot;);this.parentElement.remove();c.classList.remove(&quot;has-img&quot;)"></div>'+
+        '<div class="site-detail-title">'+s.c+' - '+s.n+'</div>'+
+        '<div class="site-detail-split">'+
+        siteRoleCol(siteRoleStats(atkRoundsAll, s.n), 'var(--atk)', 'Attaque')+
+        siteRoleCol(siteRoleStats(defRoundsAll, s.n), 'var(--def)', 'Defense')+
+        '</div></div>';
+    });
+
+    var atkNoSite = atkRoundsAll.filter(function(r){ return !r.site; }).length;
+    var defNoSite = defRoundsAll.filter(function(r){ return !r.site; }).length;
+    if (atkNoSite || defNoSite) {
+      html += '<div style="font-size:11px;color:var(--text3);margin-top:4px;text-align:center">'+
+        atkNoSite+' manche(s) attaque et '+defNoSite+' manche(s) defense sans site renseigne</div>';
+    }
   } else if (S.mapSubTab === 'history') {
     if (!mapGames.length) {
       html += '<div class="empty">Aucune partie sur cette map</div>';
