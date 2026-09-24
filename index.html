@@ -796,7 +796,7 @@ var DB = {
 
 // Bump this on every change pushed to the app, so the displayed version tells
 // you whether a given device has picked up the latest reload.
-var APP_VERSION = '3.9.2';
+var APP_VERSION = '3.9.3';
 
 // ===================== STATE =====================
 var S = {
@@ -1828,7 +1828,10 @@ function renderGameOver(preSnap) {
     html += '</div>';
   }
 
-  html += '<button class="btn btn-full" onclick="goHome()" style="margin-top:16px">Retour a l\'accueil</button>';
+  html += '<div style="display:flex;gap:8px;margin-top:16px">'+
+    '<button class="btn btn-primary" style="flex:1" onclick="goNewGame()">Nouvelle partie</button>'+
+    '<button class="btn" style="flex:1" onclick="goHome()">Accueil</button>'+
+    '</div>';
 
   document.getElementById('go-content').innerHTML = html;
 }
