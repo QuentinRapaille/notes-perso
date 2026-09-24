@@ -801,7 +801,7 @@ var DB = {
 
 // Bump this on every change pushed to the app, so the displayed version tells
 // you whether a given device has picked up the latest reload.
-var APP_VERSION = '3.9.8';
+var APP_VERSION = '3.9.9';
 
 // ===================== STATE =====================
 var S = {
@@ -3658,6 +3658,28 @@ updateAccentColors();
 updateBackgrounds();
 document.getElementById('app-version').textContent = APP_VERSION;
 renderHome();
+
+// ===================== AUTO-UPDATE (iOS home screen app) =====================
+// A page added to the iOS home screen ("Add to Home Screen") runs standalone,
+// with no URL bar or reload button, and iOS tends to resume a cached snapshot
+// rather than re-fetching over the network. To make sure the device eventually
+// picks up a pushed update on its own, re-fetch this same page with the cache
+// bypassed - on load, and every time the app is foregrounded again - and if its
+// embedded APP_VERSION differs, reload from a cache-busted URL. Skipped while a
+// game is in progress (S.curGame only lives in memory) so an update never wipes
+// unsaved round data; it'll simply be picked up next time the app is reopened
+// or returns to the home screen.
+function checkForAppUpdate() {
+  if (S.curGame) return;
+  fetch(location.pathname, { cache: 'no-store' }).then(function(r){ return r.text(); }).then(function(html){
+    var m = html.match(/var APP_VERSION = '([^']+)'/);
+    if (!m || m[1] === APP_VERSION) return;
+    location.href = location.pathname + '?v=' + encodeURIComponent(m[1]) + '&t=' + Date.now();
+  }).catch(function(){});
+}
+document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'visible') checkForAppUpdate(); });
+window.addEventListener('pageshow', checkForAppUpdate);
+checkForAppUpdate();
 </script>
 </body>
 </html>
