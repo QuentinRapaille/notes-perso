@@ -194,7 +194,7 @@ select option{background:var(--bg3)}
 .site-btn:hover{border-color:var(--site-col);color:var(--text)}
 .site-btn.sel{background:var(--site-col);border-color:var(--site-col);color:#fff}
 .site-btn-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
-.site-btn.has-img{padding:0;min-height:64px}
+.site-btn.has-img{padding:0;aspect-ratio:3/2;min-height:0}
 .site-btn.has-img .site-btn-label{display:none}
 .site-btn.has-img.sel::before{content:'';position:absolute;inset:0;background:var(--site-col);opacity:.45;z-index:1}
 .site-btn-sm{padding:6px 5px;cursor:pointer;background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:var(--r);font-family:inherit;font-size:11px;font-weight:600;text-align:center;transition:all .12s;flex:1 1 46%}
@@ -800,7 +800,7 @@ var DB = {
 
 // Bump this on every change pushed to the app, so the displayed version tells
 // you whether a given device has picked up the latest reload.
-var APP_VERSION = '3.9.6';
+var APP_VERSION = '3.9.7';
 
 // ===================== STATE =====================
 var S = {
