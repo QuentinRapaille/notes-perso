@@ -197,6 +197,7 @@ select option{background:var(--bg3)}
 .site-btn.has-img{padding:0;aspect-ratio:3/2;min-height:0}
 .site-btn.has-img .site-btn-label{display:none}
 .site-btn.has-img.sel::before{content:'';position:absolute;inset:0;background:var(--site-col);opacity:.45;z-index:1}
+.site-btn-wr{position:absolute;right:5px;bottom:5px;z-index:3;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700;background:rgba(10,10,15,.72);text-shadow:0 1px 2px rgba(0,0,0,.7)}
 .site-btn-sm{padding:6px 5px;cursor:pointer;background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:var(--r);font-family:inherit;font-size:11px;font-weight:600;text-align:center;transition:all .12s;flex:1 1 46%}
 .site-btn-sm:hover{border-color:var(--def);color:var(--text)}
 .site-btn-sm.sel{background:var(--def);border-color:var(--def);color:#fff}
@@ -800,7 +801,7 @@ var DB = {
 
 // Bump this on every change pushed to the app, so the displayed version tells
 // you whether a given device has picked up the latest reload.
-var APP_VERSION = '3.9.7';
+var APP_VERSION = '3.9.8';
 
 // ===================== STATE =====================
 var S = {
@@ -1296,6 +1297,7 @@ function renderRound() {
         return '<button type="button" class="site-btn has-img" style="--site-col:'+siteColor+'" data-site="'+s.n.replace(/"/g,'&quot;')+'" onclick="selectSite(\''+s.n.replace(/'/g,"\\'")+'\',this)">'+
           '<img class="site-btn-img" src="'+imgUrl+'" onerror="this.parentElement.classList.remove(&quot;has-img&quot;);this.remove()">'+
           '<span class="site-btn-label">'+s.c+' - '+s.n+'</span>'+
+          siteWinRateBadge(g.map, s.n, role)+
           '</button>';
       }).join('')+
       '</div></div>';
@@ -1338,6 +1340,20 @@ function selectSite(siteName, btn) {
   }
   renderSiteStats(S.curGame.map, S.site, role);
   renderOperatorRecommendation();
+}
+
+// Small win-rate badge (bottom-right of a site button) for this map/site/role,
+// based on past rounds - empty string if there's no data yet for that combo.
+function siteWinRateBadge(mapName, siteName, role) {
+  var rounds = [];
+  DB.games.forEach(function(pg) {
+    if (pg.map !== mapName) return;
+    pg.rounds.forEach(function(r) { if (r.role === role && r.site === siteName) rounds.push(r); });
+  });
+  if (!rounds.length) return '';
+  var wr = Math.round(rounds.filter(function(r){ return r.result==='win'; }).length / rounds.length * 100);
+  var wrCol = wr>=55?'var(--win)':wr<=40?'var(--loss)':'var(--text)';
+  return '<span class="site-btn-wr" style="color:'+wrCol+'">'+wr+'%</span>';
 }
 
 function renderSiteStats(mapName, siteName, role) {
